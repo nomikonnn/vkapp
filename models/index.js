@@ -4,7 +4,7 @@ const { Sequelize } = require('sequelize');
 const sequelize = new Sequelize(
   'railway',                               // база данных
   'root',                                  // пользователь
-  'xQLVlhvPTvVIIoJNQnaDcWoQzJBeFjdX',     // пароль
+  'UTRSwBcrLatMUSaornevXBNjsWjVvfbF',     // пароль
   {
     host: 'mysql.railway.internal',
     port: 3306,
