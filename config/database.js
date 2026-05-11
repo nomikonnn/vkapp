@@ -8,10 +8,10 @@ module.exports = {
     host: process.env.DB_HOST || '127.0.0.1',
     port: process.env.DB_PORT || 3306,
     dialect: 'mysql',
-    logging: console.log, // в разработке показываем SQL-запросы
+    logging: console.log,
     define: {
       timestamps: true,
-      underscored: true, // поля в таблицах будут в snake_case
+      underscored: true,
     },
   },
   production: {
@@ -19,12 +19,18 @@ module.exports = {
     password: process.env.DB_PASSWORD,
     database: process.env.DB_NAME,
     host: process.env.DB_HOST,
-    port: process.env.DB_PORT,
+    port: process.env.DB_PORT || 4000,
     dialect: 'mysql',
     logging: false,
     define: {
       timestamps: true,
       underscored: true,
     },
+    dialectOptions: {
+      ssl: {
+        require: true,
+        rejectUnauthorized: false   // для TiDB Cloud можно false, если не подключаем сертификат
+      }
+    }
   },
 };
