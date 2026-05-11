@@ -1,11 +1,6 @@
 const { Op } = require('sequelize');
-const { Product, Category, ProductImage, Review } = require('../models');
+const { Product, Category, ProductImage, Review, User } = require('../models');
 
-/**
- * Получение списка товаров с фильтрацией, поиском, сортировкой, пагинацией.
- * @param {Object} query - параметры запроса
- * @returns {Object} { products, total, page, pages }
- */
 exports.getProducts = async (query) => {
   const {
     page = 1,
@@ -19,19 +14,16 @@ exports.getProducts = async (query) => {
 
   const where = { is_active: true };
 
-  // Фильтр по категории
   if (categoryId) {
     where.category_id = parseInt(categoryId);
   }
 
-  // Фильтр по цене
   if (minPrice || maxPrice) {
     where.price = {};
     if (minPrice) where.price[Op.gte] = parseFloat(minPrice);
     if (maxPrice) where.price[Op.lte] = parseFloat(maxPrice);
   }
 
-  // Поиск по названию и описанию
   if (search) {
     where[Op.or] = [
       { name: { [Op.like]: `%${search}%` } },
@@ -39,7 +31,6 @@ exports.getProducts = async (query) => {
     ];
   }
 
-  // Сортировка
   let order;
   switch (sort) {
     case 'price_asc':
@@ -64,8 +55,7 @@ exports.getProducts = async (query) => {
     where,
     include: [
       {
-        model: Category,
-        as: 'category',
+        model: Category,          // без алиаса
         attributes: ['id', 'name', 'slug'],
       },
       {
@@ -80,7 +70,7 @@ exports.getProducts = async (query) => {
     order,
     limit: parseInt(limit),
     offset,
-    distinct: true, // важно при использовании include
+    distinct: true,
   });
 
   return {
@@ -91,18 +81,12 @@ exports.getProducts = async (query) => {
   };
 };
 
-/**
- * Получение товара по slug с категорией, изображениями и отзывами.
- * @param {string} slug
- * @returns {Object|null} product
- */
 exports.getProductBySlug = async (slug) => {
   const product = await Product.findOne({
     where: { slug, is_active: true },
     include: [
       {
-        model: Category,
-        as: 'category',
+        model: Category,          // без алиаса
         attributes: ['id', 'name', 'slug'],
       },
       {
@@ -114,7 +98,10 @@ exports.getProductBySlug = async (slug) => {
         model: Review,
         as: 'reviews',
         include: [
-          { model: require('../models').User, attributes: ['id', 'first_name', 'last_name', 'avatar_url'] },
+          {
+            model: User,
+            attributes: ['id', 'first_name', 'last_name', 'avatar_url'],
+          },
         ],
         order: [['created_at', 'DESC']],
         required: false,

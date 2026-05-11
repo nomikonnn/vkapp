@@ -8,6 +8,7 @@ const {
   Review,
   Question,
   User,
+  Category,
   sequelize,
 } = require('../models');
 
@@ -15,7 +16,7 @@ const {
 exports.getAllProducts = async (req, res, next) => {
   try {
     const products = await Product.findAll({
-      include: [{ model: require('../models').Category, as: 'category' }],
+      include: [{ model: Category }],   // без as: 'category'
       order: [['created_at', 'DESC']],
     });
     res.json(products);
@@ -89,7 +90,7 @@ exports.updateOrderStatus = async (req, res, next) => {
       include: [
         { model: Payment, as: 'payment' },
         { model: Delivery, as: 'delivery' },
-        { model: User },  // важно: включаем пользователя для получения vk_id
+        { model: User },
       ],
     });
 
@@ -102,7 +103,6 @@ exports.updateOrderStatus = async (req, res, next) => {
       return res.status(400).json({ error: 'Недопустимый статус' });
     }
 
-    // Дополнительная логика при смене статуса
     if (status === 'paid' && order.payment) {
       order.payment.status = 'completed';
       order.payment.paid_at = new Date();
@@ -120,7 +120,6 @@ exports.updateOrderStatus = async (req, res, next) => {
     order.status = status;
     await order.save();
 
-    // Отправляем уведомление пользователю в зависимости от нового статуса
     if (order.User) {
       switch (status) {
         case 'confirmed':
@@ -175,7 +174,6 @@ exports.updateReview = async (req, res, next) => {
     review.text = text;
     await review.save();
 
-    // Пересчёт рейтинга товара
     if (review.type === 'product' && review.product_id) {
       const stats = await Review.findAll({
         where: { product_id: review.product_id, type: 'product' },
@@ -239,8 +237,6 @@ exports.answerQuestion = async (req, res, next) => {
     question.answered_by = req.user.id;
     question.answered_at = new Date();
     await question.save();
-
-    // TODO: уведомление пользователю
 
     res.json(question);
   } catch (err) {

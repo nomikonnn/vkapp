@@ -42,7 +42,7 @@ User.hasMany(Question, { foreignKey: 'user_id', onDelete: 'CASCADE' });
 
 Category.hasMany(Product, { foreignKey: 'category_id', onDelete: 'RESTRICT' });
 
-Product.belongsTo(Category, { foreignKey: 'category_id' });
+Product.belongsTo(Category, { foreignKey: 'category_id' });  // без алиаса
 Product.hasMany(Cart, { foreignKey: 'product_id', onDelete: 'CASCADE' });
 Product.hasMany(Favorite, { foreignKey: 'product_id', onDelete: 'CASCADE' });
 Product.hasMany(OrderItem, { foreignKey: 'product_id', onDelete: 'RESTRICT' });

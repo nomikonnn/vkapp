@@ -9,8 +9,7 @@ async function start() {
     await sequelize.authenticate();
     console.log('Connection to MySQL has been established successfully.');
     
-    // Синхронизация всех моделей с базой данных (создаст таблицы, если их нет)
-    await sequelize.sync({ alter: true }); // для разработки; в продакшене заменить на миграции
+    await sequelize.sync({ alter: true });
     console.log('All models were synchronized successfully.');
 
     app.listen(PORT, () => {

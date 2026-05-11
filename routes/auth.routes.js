@@ -7,7 +7,6 @@ const { body } = require('express-validator');
 router.post(
   '/vk-login',
   [
-    body('sign').notEmpty().withMessage('sign обязателен'),
     body('vk_id').notEmpty().isNumeric(),
   ],
   authController.vkLogin
