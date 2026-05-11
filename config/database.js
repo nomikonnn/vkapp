@@ -13,6 +13,12 @@ module.exports = {
       timestamps: true,
       underscored: true,
     },
+    dialectOptions: {
+      ssl: {
+        require: true,
+        rejectUnauthorized: false
+      }
+    }
   },
   production: {
     username: process.env.DB_USER,
@@ -29,7 +35,7 @@ module.exports = {
     dialectOptions: {
       ssl: {
         require: true,
-        rejectUnauthorized: false   // для TiDB Cloud можно false, если не подключаем сертификат
+        rejectUnauthorized: false
       }
     }
   },
