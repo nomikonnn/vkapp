@@ -27,8 +27,27 @@ exports.getAllProducts = async (req, res, next) => {
 
 exports.createProduct = async (req, res, next) => {
   try {
-    const product = await Product.create(req.body);
-    res.status(201).json(product);
+    const { images, ...productData } = req.body;
+    const product = await Product.create(productData);
+
+    if (images && Array.isArray(images)) {
+      const imageRecords = images.map(url => ({
+        product_id: product.id,
+        image_url: url,
+        is_main: false,        // можно доработать выбор главного изображения
+        sort_order: 0
+      }));
+      await ProductImage.bulkCreate(imageRecords);
+    }
+
+    // Возвращаем товар с категорией и изображениями
+    const result = await Product.findByPk(product.id, {
+      include: [
+        { model: Category },
+        { model: ProductImage, as: 'images' }
+      ]
+    });
+    res.status(201).json(result);
   } catch (err) {
     next(err);
   }
@@ -38,8 +57,31 @@ exports.updateProduct = async (req, res, next) => {
   try {
     const product = await Product.findByPk(req.params.id);
     if (!product) return res.status(404).json({ error: 'Товар не найден' });
-    await product.update(req.body);
-    res.json(product);
+
+    const { images, ...productData } = req.body;
+    await product.update(productData);
+
+    // Обновляем изображения: удаляем старые и создаём новые
+    if (images !== undefined) {
+      await ProductImage.destroy({ where: { product_id: product.id } });
+      if (Array.isArray(images)) {
+        const imageRecords = images.map(url => ({
+          product_id: product.id,
+          image_url: url,
+          is_main: false,
+          sort_order: 0
+        }));
+        await ProductImage.bulkCreate(imageRecords);
+      }
+    }
+
+    const result = await Product.findByPk(product.id, {
+      include: [
+        { model: Category },
+        { model: ProductImage, as: 'images' }
+      ]
+    });
+    res.json(result);
   } catch (err) {
     next(err);
   }

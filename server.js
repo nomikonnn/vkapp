@@ -2,7 +2,7 @@ require('dotenv').config();
 const app = require('./app');
 const { sequelize } = require('./models');
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 5000;
 
 async function start() {
   try {
@@ -13,7 +13,7 @@ async function start() {
     console.log('All models were synchronized successfully.');
 
     app.listen(PORT, () => {
-      console.log(`Server is running on http://localhost:${PORT}`);
+      console.log(`Server is running on ${PORT}`);
     });
   } catch (error) {
     console.error('Unable to connect to the database:', error);
