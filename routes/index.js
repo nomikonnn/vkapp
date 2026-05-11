@@ -11,6 +11,7 @@ const questionRoutes = require('./question.routes');
 const adminRoutes = require('./admin.routes');
 const faqRoutes = require('./faq.routes');         // подключаем
 const aboutRoutes = require('./about.routes');     // подключаем
+const categoriesRoutes = require('./categories.routes')
 
 // Публичные справочные маршруты через отдельные роутеры
 router.use('/faq', faqRoutes);
@@ -24,5 +25,6 @@ router.use('/orders', orderRoutes);
 router.use('/reviews', reviewRoutes);
 router.use('/questions', questionRoutes);
 router.use('/admin', adminRoutes);
+router.use('/categories', publicRoute);
 
 module.exports = router;
