@@ -12,12 +12,6 @@ module.exports = {
     define: {
       timestamps: true,
       underscored: true,
-    },
-    dialectOptions: {
-      ssl: {
-        require: true,
-        rejectUnauthorized: false
-      }
     }
   },
   production: {
@@ -25,18 +19,12 @@ module.exports = {
     password: process.env.DB_PASSWORD,
     database: process.env.DB_NAME,
     host: process.env.DB_HOST,
-    port: process.env.DB_PORT || 4000,
+    port: process.env.DB_PORT || 3306,
     dialect: 'mysql',
     logging: false,
     define: {
       timestamps: true,
       underscored: true,
-    },
-    dialectOptions: {
-      ssl: {
-        require: true,
-        rejectUnauthorized: false
-      }
     }
-  },
+  }
 };
