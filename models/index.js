@@ -1,19 +1,19 @@
 const { Sequelize } = require('sequelize');
-const config = require('../config/database.js');
 
-const env = process.env.NODE_ENV || 'development';
-const dbConfig = config[env];
-
+// Жёстко заданные параметры для Railway MySQL (временно)
 const sequelize = new Sequelize(
-  dbConfig.database,
-  dbConfig.username,
-  dbConfig.password,
+  'railway',                               // база данных
+  'root',                                  // пользователь
+  'xQLVlhvPTvVIIoJNQnaDcWoQzJBeFjdX',     // пароль
   {
-    host: dbConfig.host,
-    port: dbConfig.port,
-    dialect: dbConfig.dialect,
-    logging: dbConfig.logging,
-    define: dbConfig.define,
+    host: 'mysql.railway.internal',
+    port: 3306,
+    dialect: 'mysql',
+    logging: false,
+    define: {
+      timestamps: true,
+      underscored: true,
+    }
   }
 );
 
@@ -33,7 +33,7 @@ const Question = require('./Question')(sequelize, Sequelize.DataTypes);
 const Faq = require('./Faq')(sequelize, Sequelize.DataTypes);
 const AboutPage = require('./AboutPage')(sequelize, Sequelize.DataTypes);
 
-// ========== Определение связей ==========
+// Определение связей (без изменений)
 User.hasMany(Cart, { foreignKey: 'user_id', onDelete: 'CASCADE' });
 User.hasMany(Favorite, { foreignKey: 'user_id', onDelete: 'CASCADE' });
 User.hasMany(Order, { foreignKey: 'user_id', onDelete: 'RESTRICT' });
@@ -42,7 +42,7 @@ User.hasMany(Question, { foreignKey: 'user_id', onDelete: 'CASCADE' });
 
 Category.hasMany(Product, { foreignKey: 'category_id', onDelete: 'RESTRICT' });
 
-Product.belongsTo(Category, { foreignKey: 'category_id' });  // без алиаса
+Product.belongsTo(Category, { foreignKey: 'category_id' });
 Product.hasMany(Cart, { foreignKey: 'product_id', onDelete: 'CASCADE' });
 Product.hasMany(Favorite, { foreignKey: 'product_id', onDelete: 'CASCADE' });
 Product.hasMany(OrderItem, { foreignKey: 'product_id', onDelete: 'RESTRICT' });
@@ -67,7 +67,6 @@ OrderItem.belongsTo(Order, { foreignKey: 'order_id' });
 OrderItem.belongsTo(Product, { foreignKey: 'product_id' });
 
 Payment.belongsTo(Order, { foreignKey: 'order_id' });
-
 Delivery.belongsTo(Order, { foreignKey: 'order_id' });
 
 Review.belongsTo(User, { foreignKey: 'user_id' });
@@ -80,18 +79,8 @@ Question.belongsTo(User, { as: 'answeredByUser', foreignKey: 'answered_by' });
 module.exports = {
   sequelize,
   Sequelize,
-  User,
-  Category,
-  Product,
-  ProductImage,
-  Cart,
-  Favorite,
-  Order,
-  OrderItem,
-  Payment,
-  Delivery,
-  Review,
-  Question,
-  Faq,
-  AboutPage,
+  User, Category, Product, ProductImage,
+  Cart, Favorite, Order, OrderItem,
+  Payment, Delivery, Review, Question,
+  Faq, AboutPage
 };
