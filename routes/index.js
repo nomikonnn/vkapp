@@ -9,11 +9,11 @@ const orderRoutes = require('./order.routes');
 const reviewRoutes = require('./review.routes');
 const questionRoutes = require('./question.routes');
 const adminRoutes = require('./admin.routes');
-const faqRoutes = require('./faq.routes');         // подключаем
-const aboutRoutes = require('./about.routes');     // подключаем
-const categoriesRoutes = require('./categories.routes')
+const faqRoutes = require('./faq.routes');
+const aboutRoutes = require('./about.routes');
+const categoriesRoutes = require('./categories.routes');
 
-// Публичные справочные маршруты через отдельные роутеры
+// Публичные справочные маршруты
 router.use('/faq', faqRoutes);
 router.use('/about', aboutRoutes);
 
@@ -25,6 +25,8 @@ router.use('/orders', orderRoutes);
 router.use('/reviews', reviewRoutes);
 router.use('/questions', questionRoutes);
 router.use('/admin', adminRoutes);
-router.use('/categories', publicRoute);
+
+// Категории (публичный GET + админские POST/DELETE внутри)
+router.use('/categories', categoriesRoutes);
 
 module.exports = router;
