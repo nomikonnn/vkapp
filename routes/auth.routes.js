@@ -4,11 +4,11 @@ const authController = require('../controllers/authController');
 const authMiddleware = require('../middleware/authMiddleware');
 const { body } = require('express-validator');
 
-// VK-логин (существующий)
+// VK-логин (упрощённая валидация)
 router.post(
   '/vk-login',
   [
-    body('vk_id').notEmpty().isNumeric(),
+    body('vk_id').notEmpty().isNumeric(), // убрали проверку sign
   ],
   authController.vkLogin
 );

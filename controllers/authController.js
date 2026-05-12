@@ -30,7 +30,7 @@ exports.vkLogin = async (req, res, next) => {
     const token = jwt.sign(
       { userId: user.id, vk_id: user.vk_id, role: user.role },
       process.env.JWT_SECRET,
-      { expiresIn: process.env.JWT_EXPIRES_IN }
+      { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
     );
 
     res.json({
@@ -102,7 +102,6 @@ exports.updateProfile = async (req, res, next) => {
   }
 };
 
-// НОВЫЙ МЕТОД – вход по email/паролю (только для администраторов)
 exports.loginWithPassword = async (req, res, next) => {
   try {
     const { email, password } = req.body;
