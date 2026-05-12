@@ -1,3 +1,4 @@
+// backend/services/productService.js
 const { Op } = require('sequelize');
 const { Product, Category, ProductImage, Review, User } = require('../models');
 
@@ -55,7 +56,8 @@ exports.getProducts = async (query) => {
     where,
     include: [
       {
-        model: Category,          // без алиаса
+        model: Category,
+        as: 'category',            // ← добавлен алиас
         attributes: ['id', 'name', 'slug'],
       },
       {
@@ -86,7 +88,8 @@ exports.getProductBySlug = async (slug) => {
     where: { slug, is_active: true },
     include: [
       {
-        model: Category,          // без алиаса
+        model: Category,
+        as: 'category',            // ← добавлен алиас
         attributes: ['id', 'name', 'slug'],
       },
       {

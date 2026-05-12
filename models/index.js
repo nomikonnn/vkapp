@@ -1,19 +1,20 @@
+// backend/models/index.js
+require('dotenv').config();   // для локальной разработки (на Railway переменные уже есть)
 const { Sequelize } = require('sequelize');
 
-// Жёстко заданные параметры для Railway MySQL (временно)
 const sequelize = new Sequelize(
-  'railway',                               // база данных
-  'root',                                  // пользователь
-  'UTRSwBcrLatMUSaornevXBNjsWjVvfbF',     // пароль
+  process.env.DB_NAME || 'railway',
+  process.env.DB_USER || 'root',
+  process.env.DB_PASSWORD || '',
   {
-    host: 'mysql.railway.internal',
-    port: 3306,
+    host: process.env.DB_HOST || 'mysql.railway.internal',
+    port: process.env.DB_PORT || 3306,
     dialect: 'mysql',
     logging: false,
     define: {
       timestamps: true,
       underscored: true,
-    }
+    },
   }
 );
 
@@ -33,24 +34,17 @@ const Question = require('./Question')(sequelize, Sequelize.DataTypes);
 const Faq = require('./Faq')(sequelize, Sequelize.DataTypes);
 const AboutPage = require('./AboutPage')(sequelize, Sequelize.DataTypes);
 
-// Определение связей (без изменений)
+// Определение связей (только те, которых нет в static associate моделей)
 User.hasMany(Cart, { foreignKey: 'user_id', onDelete: 'CASCADE' });
 User.hasMany(Favorite, { foreignKey: 'user_id', onDelete: 'CASCADE' });
 User.hasMany(Order, { foreignKey: 'user_id', onDelete: 'RESTRICT' });
 User.hasMany(Review, { foreignKey: 'user_id', onDelete: 'CASCADE' });
 User.hasMany(Question, { foreignKey: 'user_id', onDelete: 'CASCADE' });
 
-Category.hasMany(Product, { foreignKey: 'category_id', onDelete: 'RESTRICT' });
-
-Product.belongsTo(Category, { foreignKey: 'category_id' });
 Product.hasMany(Cart, { foreignKey: 'product_id', onDelete: 'CASCADE' });
 Product.hasMany(Favorite, { foreignKey: 'product_id', onDelete: 'CASCADE' });
 Product.hasMany(OrderItem, { foreignKey: 'product_id', onDelete: 'RESTRICT' });
-Product.hasMany(Review, { foreignKey: 'product_id', onDelete: 'CASCADE' });
 Product.hasMany(Question, { foreignKey: 'product_id', onDelete: 'CASCADE' });
-Product.hasMany(ProductImage, { foreignKey: 'product_id', as: 'images', onDelete: 'CASCADE' });
-
-ProductImage.belongsTo(Product, { foreignKey: 'product_id' });
 
 Cart.belongsTo(User, { foreignKey: 'user_id' });
 Cart.belongsTo(Product, { foreignKey: 'product_id' });
@@ -68,9 +62,6 @@ OrderItem.belongsTo(Product, { foreignKey: 'product_id' });
 
 Payment.belongsTo(Order, { foreignKey: 'order_id' });
 Delivery.belongsTo(Order, { foreignKey: 'order_id' });
-
-Review.belongsTo(User, { foreignKey: 'user_id' });
-Review.belongsTo(Product, { foreignKey: 'product_id' });
 
 Question.belongsTo(User, { foreignKey: 'user_id' });
 Question.belongsTo(Product, { foreignKey: 'product_id' });

@@ -11,13 +11,21 @@ module.exports = (sequelize, DataTypes) => {
     },
     vk_id: {
       type: DataTypes.BIGINT.UNSIGNED,
-      allowNull: false,
+      allowNull: true,             // теперь может быть NULL для администраторов без VK
       unique: true,
     },
     first_name: DataTypes.STRING(100),
     last_name: DataTypes.STRING(100),
-    email: DataTypes.STRING(150),
+    email: {
+      type: DataTypes.STRING(255),
+      unique: true,
+      allowNull: true,             // необязателен для VK‑пользователей
+    },
     phone: DataTypes.STRING(20),
+    password: {
+      type: DataTypes.STRING(255),
+      allowNull: true,             // хранится bcrypt‑хэш, только для админов с паролем
+    },
     role: {
       type: DataTypes.ENUM('user', 'admin'),
       defaultValue: 'user',

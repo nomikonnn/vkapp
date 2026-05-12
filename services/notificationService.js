@@ -5,12 +5,17 @@ const VK_API_VERSION = '5.199';
 
 /**
  * Отправляет сообщение пользователю ВКонтакте от имени сообщества.
- * @param {number} vkUserId - ID пользователя ВКонтакте (не путать с внутренним id)
+ * @param {number} vkUserId - ID пользователя ВКонтакте
  * @param {string} message - Текст сообщения
- * @param {string|null} appId - ID приложения для формирования ссылки на ЛК
- * @returns {Promise<void>}
+ * @param {string|null} appId - ID приложения для кнопки «Личный кабинет»
  */
 async function sendMessage(vkUserId, message, appId = null) {
+  // Проверка наличия токена сообщества
+  if (!process.env.VK_COMMUNITY_TOKEN) {
+    console.error('VK_COMMUNITY_TOKEN не задан — уведомление не отправлено');
+    return;
+  }
+
   try {
     const params = {
       user_id: vkUserId,
@@ -20,7 +25,7 @@ async function sendMessage(vkUserId, message, appId = null) {
       v: VK_API_VERSION,
     };
 
-    // Если передан appId, добавляем клавиатуру с кнопкой «Личный кабинет»
+    // Добавляем клавиатуру с кнопкой «Перейти в личный кабинет», если передан appId
     if (appId) {
       const keyboard = {
         inline: true,
@@ -31,7 +36,7 @@ async function sendMessage(vkUserId, message, appId = null) {
                 type: 'open_app',
                 app_id: Number(appId),
                 label: 'Перейти в личный кабинет',
-                hash: 'profile',   // можно указать hash для навигации внутри Mini App
+                hash: 'profile',   // хеш для навигации внутри Mini App
               },
             },
           ],
@@ -43,14 +48,15 @@ async function sendMessage(vkUserId, message, appId = null) {
     await axios.post(`${VK_API_URL}messages.send`, null, { params });
     console.log(`Уведомление отправлено пользователю ${vkUserId}`);
   } catch (error) {
-    console.error(`Ошибка отправки уведомления пользователю ${vkUserId}:`, error.response?.data || error.message);
+    console.error(
+      `Ошибка отправки уведомления пользователю ${vkUserId}:`,
+      error.response?.data || error.message
+    );
   }
 }
 
 /**
- * Отправляет уведомление о новом заказе.
- * @param {object} user - объект пользователя (свойство vk_id обязательно)
- * @param {number} orderId - ID заказа
+ * Уведомление о новом заказе.
  */
 exports.notifyNewOrder = async (user, orderId) => {
   if (!user.vk_id) return;
@@ -59,9 +65,7 @@ exports.notifyNewOrder = async (user, orderId) => {
 };
 
 /**
- * Отправляет уведомление о подтверждении заказа.
- * @param {object} user - пользователь
- * @param {number} orderId - ID заказа
+ * Уведомление о подтверждении заказа.
  */
 exports.notifyOrderConfirmed = async (user, orderId) => {
   if (!user.vk_id) return;
@@ -70,9 +74,7 @@ exports.notifyOrderConfirmed = async (user, orderId) => {
 };
 
 /**
- * Отправляет уведомление об оплате.
- * @param {object} user
- * @param {number} orderId
+ * Уведомление об оплате.
  */
 exports.notifyOrderPaid = async (user, orderId) => {
   if (!user.vk_id) return;
@@ -81,9 +83,7 @@ exports.notifyOrderPaid = async (user, orderId) => {
 };
 
 /**
- * Отправляет уведомление о передаче в доставку.
- * @param {object} user
- * @param {number} orderId
+ * Уведомление о передаче в доставку.
  */
 exports.notifyOrderShipped = async (user, orderId) => {
   if (!user.vk_id) return;
@@ -92,9 +92,7 @@ exports.notifyOrderShipped = async (user, orderId) => {
 };
 
 /**
- * Отправляет уведомление о доставке.
- * @param {object} user
- * @param {number} orderId
+ * Уведомление о доставке.
  */
 exports.notifyOrderDelivered = async (user, orderId) => {
   if (!user.vk_id) return;
@@ -103,9 +101,7 @@ exports.notifyOrderDelivered = async (user, orderId) => {
 };
 
 /**
- * Отправляет уведомление об отмене.
- * @param {object} user
- * @param {number} orderId
+ * Уведомление об отмене.
  */
 exports.notifyOrderCancelled = async (user, orderId) => {
   if (!user.vk_id) return;

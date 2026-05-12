@@ -1,3 +1,4 @@
+// backend/models/Product.js (без изменений)
 const { Model } = require('sequelize');
 
 module.exports = (sequelize, DataTypes) => {

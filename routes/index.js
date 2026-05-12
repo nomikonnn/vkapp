@@ -12,6 +12,7 @@ const adminRoutes = require('./admin.routes');
 const faqRoutes = require('./faq.routes');
 const aboutRoutes = require('./about.routes');
 const categoriesRoutes = require('./categories.routes');
+const botOrderRoutes = require('./botOrder.routes');
 
 // Публичные справочные маршруты
 router.use('/faq', faqRoutes);
@@ -25,6 +26,7 @@ router.use('/orders', orderRoutes);
 router.use('/reviews', reviewRoutes);
 router.use('/questions', questionRoutes);
 router.use('/admin', adminRoutes);
+router.use('/bot', botOrderRoutes);
 
 // Категории (публичный GET + админские POST/DELETE внутри)
 router.use('/categories', categoriesRoutes);

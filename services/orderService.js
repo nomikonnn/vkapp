@@ -1,11 +1,7 @@
-const { Cart, Product, Order, OrderItem, Payment, Delivery, sequelize } = require('../models');
+// backend/services/orderService.js
+const { Cart, Product, Order, OrderItem, Payment, Delivery, sequelize, User } = require('../models');
+const notificationService = require('../services/notificationService');
 
-/**
- * Проверяет корзину пользователя, рассчитывает суммы и создаёт заказ.
- * @param {number} userId - ID пользователя
- * @param {Object} orderData - данные заказа (delivery_type, address, date, time, payment_method, promo_code, note)
- * @returns {Object} созданный заказ
- */
 exports.createOrder = async (userId, orderData) => {
   const {
     delivery_type,
@@ -47,22 +43,16 @@ exports.createOrder = async (userId, orderData) => {
     });
   }
 
-  // 3. Рассчитываем скидку по промокоду
   let discountAmount = 0;
   if (promo_code) {
     discountAmount = exports.calculateDiscount(promo_code, originalAmount);
   }
 
-  // 4. Стоимость доставки
   const deliveryCost = delivery_type === 'courier' ? 300 : 150;
-
-  // 5. Итоговая сумма
   const totalAmount = originalAmount - discountAmount + deliveryCost;
 
-  // 6. Транзакция создания заказа
   const t = await sequelize.transaction();
   try {
-    // Создаём заказ
     const order = await Order.create({
       user_id: userId,
       delivery_type,
@@ -78,13 +68,11 @@ exports.createOrder = async (userId, orderData) => {
       note,
     }, { transaction: t });
 
-    // Позиции заказа
     await OrderItem.bulkCreate(
       orderItemsData.map(item => ({ ...item, order_id: order.id })),
       { transaction: t }
     );
 
-    // Платёж
     await Payment.create({
       order_id: order.id,
       method: payment_method,
@@ -92,7 +80,6 @@ exports.createOrder = async (userId, orderData) => {
       amount: totalAmount,
     }, { transaction: t });
 
-    // Доставка
     await Delivery.create({
       order_id: order.id,
       type: delivery_type,
@@ -101,7 +88,6 @@ exports.createOrder = async (userId, orderData) => {
       time_window: delivery_time_window,
     }, { transaction: t });
 
-    // Списываем товары и очищаем корзину
     for (const item of cartItems) {
       item.Product.stock -= item.quantity;
       await item.Product.save({ transaction: t });
@@ -110,7 +96,16 @@ exports.createOrder = async (userId, orderData) => {
 
     await t.commit();
 
-    // Возвращаем заказ с вложениями
+    // Получаем пользователя для уведомления
+    const user = await User.findByPk(userId);
+
+    // Отправляем уведомление о новом заказе (если есть vk_id)
+    if (user && user.vk_id) {
+      notificationService.notifyNewOrder(user, order.id).catch(err =>
+        console.error('Ошибка уведомления о новом заказе:', err.message)
+      );
+    }
+
     const fullOrder = await Order.findByPk(order.id, {
       include: [
         { model: OrderItem, as: 'items' },
@@ -126,15 +121,10 @@ exports.createOrder = async (userId, orderData) => {
   }
 };
 
-/**
- * Расчёт скидки по промокоду.
- * Здесь можно подключить реальную проверку кода из БД, пока заглушка.
- */
 exports.calculateDiscount = (code, amount) => {
-  // Пример фиксированных промокодов
   const promoCodes = {
-    'SALE10': 10,   // 10%
-    'MUSIC20': 20,  // 20%
+    'SALE10': 10,
+    'MUSIC20': 20,
   };
   const discountPercent = promoCodes[code.toUpperCase()];
   if (!discountPercent) {

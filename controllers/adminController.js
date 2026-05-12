@@ -1,6 +1,8 @@
+// backend/controllers/adminController.js
 const notificationService = require('../services/notificationService');
 const {
   Product,
+  ProductImage,
   Order,
   OrderItem,
   Payment,
@@ -12,11 +14,21 @@ const {
   sequelize,
 } = require('../models');
 
+// ---------- УТИЛИТА ДЛЯ SLUG ----------
+const slugify = (str) =>
+  str
+    .toLowerCase()
+    .replace(/[^a-zа-яё0-9\s-]/gi, '')
+    .trim()
+    .replace(/\s+/g, '-') +
+  '-' +
+  Date.now();
+
 // ---------- УПРАВЛЕНИЕ ТОВАРАМИ ----------
 exports.getAllProducts = async (req, res, next) => {
   try {
     const products = await Product.findAll({
-      include: [{ model: Category }],   // без as: 'category'
+      include: [{ model: Category, as: 'category' }],
       order: [['created_at', 'DESC']],
     });
     res.json(products);
@@ -28,24 +40,32 @@ exports.getAllProducts = async (req, res, next) => {
 exports.createProduct = async (req, res, next) => {
   try {
     const { images, ...productData } = req.body;
+
+    if (!productData.slug) {
+      productData.slug = slugify(productData.name || 'product');
+    }
+
+    const validImages = (images || []).filter(
+      (url) => typeof url === 'string' && /^https?:\/\/.+/.test(url.trim())
+    );
+
     const product = await Product.create(productData);
 
-    if (images && Array.isArray(images)) {
-      const imageRecords = images.map(url => ({
+    if (validImages.length) {
+      const imageRecords = validImages.map((url) => ({
         product_id: product.id,
-        image_url: url,
-        is_main: false,        // можно доработать выбор главного изображения
-        sort_order: 0
+        image_url: url.trim(),
+        is_main: false,
+        sort_order: 0,
       }));
       await ProductImage.bulkCreate(imageRecords);
     }
 
-    // Возвращаем товар с категорией и изображениями
     const result = await Product.findByPk(product.id, {
       include: [
-        { model: Category },
-        { model: ProductImage, as: 'images' }
-      ]
+        { model: Category, as: 'category' },
+        { model: ProductImage, as: 'images' },
+      ],
     });
     res.status(201).json(result);
   } catch (err) {
@@ -59,17 +79,26 @@ exports.updateProduct = async (req, res, next) => {
     if (!product) return res.status(404).json({ error: 'Товар не найден' });
 
     const { images, ...productData } = req.body;
+
+    if (productData.name && !productData.slug) {
+      productData.slug = slugify(productData.name);
+    }
+
     await product.update(productData);
 
-    // Обновляем изображения: удаляем старые и создаём новые
     if (images !== undefined) {
       await ProductImage.destroy({ where: { product_id: product.id } });
-      if (Array.isArray(images)) {
-        const imageRecords = images.map(url => ({
+
+      const validImages = (images || []).filter(
+        (url) => typeof url === 'string' && /^https?:\/\/.+/.test(url.trim())
+      );
+
+      if (validImages.length) {
+        const imageRecords = validImages.map((url) => ({
           product_id: product.id,
-          image_url: url,
+          image_url: url.trim(),
           is_main: false,
-          sort_order: 0
+          sort_order: 0,
         }));
         await ProductImage.bulkCreate(imageRecords);
       }
@@ -77,9 +106,9 @@ exports.updateProduct = async (req, res, next) => {
 
     const result = await Product.findByPk(product.id, {
       include: [
-        { model: Category },
-        { model: ProductImage, as: 'images' }
-      ]
+        { model: Category, as: 'category' },
+        { model: ProductImage, as: 'images' },
+      ],
     });
     res.json(result);
   } catch (err) {
@@ -102,9 +131,7 @@ exports.deleteProduct = async (req, res, next) => {
 exports.getAllOrders = async (req, res, next) => {
   try {
     const where = {};
-    if (req.query.status) {
-      where.status = req.query.status;
-    }
+    if (req.query.status) where.status = req.query.status;
 
     const orders = await Order.findAll({
       where,
@@ -112,10 +139,7 @@ exports.getAllOrders = async (req, res, next) => {
         { model: OrderItem, as: 'items' },
         { model: Payment, as: 'payment' },
         { model: Delivery, as: 'delivery' },
-        {
-          model: User,
-          attributes: ['id', 'first_name', 'last_name', 'email', 'phone'],
-        },
+        { model: User, attributes: ['id', 'vk_id', 'first_name', 'last_name', 'email', 'phone'] },
       ],
       order: [['created_at', 'DESC']],
     });
@@ -132,15 +156,12 @@ exports.updateOrderStatus = async (req, res, next) => {
       include: [
         { model: Payment, as: 'payment' },
         { model: Delivery, as: 'delivery' },
-        { model: User },
+        { model: User, attributes: ['id', 'vk_id', 'first_name'] }, // ← явно запрашиваем vk_id
       ],
     });
-
     if (!order) return res.status(404).json({ error: 'Заказ не найден' });
 
-    const allowedStatuses = [
-      'pending', 'confirmed', 'paid', 'shipped', 'delivered', 'cancelled',
-    ];
+    const allowedStatuses = ['pending', 'confirmed', 'paid', 'shipped', 'delivered', 'cancelled'];
     if (!allowedStatuses.includes(status)) {
       return res.status(400).json({ error: 'Недопустимый статус' });
     }
@@ -178,8 +199,6 @@ exports.updateOrderStatus = async (req, res, next) => {
           break;
         case 'cancelled':
           await notificationService.notifyOrderCancelled(order.User, order.id);
-          break;
-        default:
           break;
       }
     }
@@ -219,16 +238,11 @@ exports.updateReview = async (req, res, next) => {
     if (review.type === 'product' && review.product_id) {
       const stats = await Review.findAll({
         where: { product_id: review.product_id, type: 'product' },
-        attributes: [
-          [sequelize.fn('AVG', sequelize.col('rating')), 'avgRating'],
-        ],
+        attributes: [[sequelize.fn('AVG', sequelize.col('rating')), 'avgRating']],
         raw: true,
       });
       const avg = stats[0].avgRating || 0;
-      await Product.update(
-        { rating: avg },
-        { where: { id: review.product_id } }
-      );
+      await Product.update({ rating: avg }, { where: { id: review.product_id } });
     }
 
     res.json(review);
@@ -255,11 +269,7 @@ exports.getAllQuestions = async (req, res, next) => {
       include: [
         { model: User, attributes: ['id', 'first_name', 'last_name'] },
         { model: Product, attributes: ['id', 'name', 'slug'] },
-        {
-          model: User,
-          as: 'answeredByUser',
-          attributes: ['id', 'first_name', 'last_name'],
-        },
+        { model: User, as: 'answeredByUser', attributes: ['id', 'first_name', 'last_name'] },
       ],
       order: [['created_at', 'DESC']],
     });
