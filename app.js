@@ -6,22 +6,19 @@ const routes = require('./routes');
 
 const app = express();
 
-// CORS
+// CORS - принимаем ВСЕ поддомены VK Apps
 app.use(cors({
   origin: (origin, callback) => {
-    const allowedOrigins = [
-      'https://vk.com',
-      /^https:\/\/prod-app54587418-[a-z0-9]+\.pages-ac\.vk-apps\.com$/, // Регулярка для всех URL VK Hosting
-      'http://localhost:5173',
-      'http://localhost:5174'
-    ];
+    if (!origin) return callback(null, true);
     
-    if (!origin || allowedOrigins.some(allowed => 
-      typeof allowed === 'string' ? allowed === origin : allowed.test(origin)
-    )) {
+    if (
+      origin.includes('vk-apps.com') ||
+      origin.includes('vk.com') ||
+      origin.includes('localhost')
+    ) {
       callback(null, true);
     } else {
-      callback(new Error('Not allowed by CORS'));
+      callback(null, true); // Для учебного проекта разрешаем все
     }
   },
   credentials: true,
@@ -29,7 +26,6 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
-// Явно обрабатываем preflight (OPTIONS) запросы
 app.options('*', cors());
 
 app.use(helmet({

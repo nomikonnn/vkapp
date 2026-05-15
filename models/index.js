@@ -49,13 +49,6 @@ sequelize
   .authenticate()
   .then(() => {
     console.log('✅ Подключение к базе данных установлено');
-    
-    // Автоматическая синхронизация моделей с БД
-    // alter: true - обновляет существующие таблицы без потери данных
-    return sequelize.sync({ alter: true });
-  })
-  .then(() => {
-    console.log('✅ Таблицы синхронизированы с моделями');
   })
   .catch((err) => {
     console.error('❌ Ошибка подключения к базе данных:', err.message);
