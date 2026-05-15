@@ -1,54 +1,49 @@
-// models/Review.js
-const { Model } = require('sequelize');
-
 module.exports = (sequelize, DataTypes) => {
-  class Review extends Model {
-    static associate(models) {
-      Review.belongsTo(models.User, { foreignKey: 'user_id' });
-      Review.belongsTo(models.Product, { foreignKey: 'product_id' });
-    }
-  }
-
-  Review.init({
+  const Review = sequelize.define('Review', {
     id: {
-      type: DataTypes.INTEGER.UNSIGNED,
-      autoIncrement: true,
+      type: DataTypes.INTEGER,
       primaryKey: true,
+      autoIncrement: true,
     },
     user_id: {
-      type: DataTypes.INTEGER.UNSIGNED,
+      type: DataTypes.INTEGER,
       allowNull: false,
+      references: {
+        model: 'users',
+        key: 'id',
+      },
     },
     product_id: {
-      type: DataTypes.INTEGER.UNSIGNED,
-      allowNull: true,   // null для отзыва о магазине
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      references: {
+        model: 'products',
+        key: 'id',
+      },
     },
     rating: {
-      type: DataTypes.TINYINT.UNSIGNED,
+      type: DataTypes.INTEGER,
       allowNull: false,
-      validate: { min: 1, max: 5 },
+      validate: {
+        min: 1,
+        max: 5,
+      },
     },
     text: {
       type: DataTypes.TEXT,
-      allowNull: false,
-    },
-    type: {
-      type: DataTypes.ENUM('product', 'shop'),
-      defaultValue: 'product',
+      allowNull: true,
     },
   }, {
-    sequelize,
-    modelName: 'Review',
     tableName: 'reviews',
     timestamps: true,
     underscored: true,
-    indexes: [
-      { fields: ['product_id'] },
-      { fields: ['type'] },
-      { fields: ['user_id'] },
-      { unique: true, fields: ['user_id', 'product_id', 'type'] },
-    ],
   });
+
+  // ВАЖНО: Добавьте связи прямо здесь
+  Review.associate = (models) => {
+    Review.belongsTo(models.User, { foreignKey: 'user_id', as: 'user' });
+    Review.belongsTo(models.Product, { foreignKey: 'product_id', as: 'product' });
+  };
 
   return Review;
 };
