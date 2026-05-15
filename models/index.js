@@ -71,6 +71,9 @@ const Faq = require('./Faq')(sequelize, Sequelize.DataTypes);
 const AboutPage = require('./AboutPage')(sequelize, Sequelize.DataTypes);
 
 // Определение связей
+// Определение связей
+Product.belongsTo(Category, { foreignKey: 'category_id', as: 'category' });
+Category.hasMany(Product, { foreignKey: 'category_id' });
 User.hasMany(Cart, { foreignKey: 'user_id', onDelete: 'CASCADE' });
 User.hasMany(Favorite, { foreignKey: 'user_id', onDelete: 'CASCADE' });
 User.hasMany(Order, { foreignKey: 'user_id', onDelete: 'RESTRICT' });
