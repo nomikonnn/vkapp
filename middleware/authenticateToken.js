@@ -1,34 +1,38 @@
+// backend/middleware/authenticateToken.js
 const jwt = require('jsonwebtoken');
+const { User } = require('../models');
 
-module.exports = (req, res, next) => {
+module.exports = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
-
-    if (!authHeader) {
-      return res.status(401).json({
-        message: 'Токен отсутствует',
-      });
+    
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ message: 'Требуется токен авторизации' });
     }
 
     const token = authHeader.split(' ')[1];
-
-    if (!token) {
-      return res.status(401).json({
-        message: 'Неверный формат токена',
-      });
+    
+    // Проверка токена
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    
+    // Загрузка пользователя из БД
+    const user = await User.findByPk(decoded.id);
+    
+    if (!user) {
+      return res.status(401).json({ message: 'Пользователь не найден' });
     }
 
-    const decoded = jwt.verify(
-      token,
-      process.env.JWT_SECRET
-    );
-
-    req.user = decoded;
-
+    // Добавляем пользователя в req для использования в роутах
+    req.user = user;
     next();
   } catch (error) {
-    return res.status(401).json({
-      message: 'Недействительный токен',
-    });
+    if (error.name === 'JsonWebTokenError') {
+      return res.status(401).json({ message: 'Невалидный токен' });
+    }
+    if (error.name === 'TokenExpiredError') {
+      return res.status(401).json({ message: 'Токен истёк' });
+    }
+    console.error('Auth middleware error:', error);
+    res.status(500).json({ message: 'Ошибка авторизации' });
   }
 };
