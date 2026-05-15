@@ -3,13 +3,44 @@ const orderService = require('../services/orderService');
 const { Order, OrderItem, Payment, Delivery, User } = require('../models');
 
 /**
+ * Преобразование даты в формат YYYY-MM-DD (если она в формате DD.MM.YYYY)
+ */
+function normalizeDate(dateStr) {
+  if (!dateStr) return null;
+  
+  // Если уже в формате YYYY-MM-DD
+  if (/^\d{4}-\d{2}-\d{2}/.test(dateStr)) return dateStr;
+  
+  // Если в формате DD.MM.YYYY → конвертируем
+  if (/^\d{2}\.\d{2}\.\d{4}$/.test(dateStr)) {
+    const [day, month, year] = dateStr.split('.');
+    return `${year}-${month}-${day}`;
+  }
+  
+  return null;
+}
+
+/**
  * POST /api/orders
  * Создание заказа (только авторизованные пользователи)
  */
 exports.createOrder = async (req, res, next) => {
   try {
     const userId = req.user.id;
-    const order = await orderService.createOrder(userId, req.body);
+    
+    // Нормализация даты доставки на случай неверного формата
+    const body = { ...req.body };
+    if (body.delivery_date) {
+      const normalized = normalizeDate(body.delivery_date);
+      if (!normalized) {
+        return res.status(400).json({ 
+          error: 'Неверный формат даты доставки. Используйте формат ГГГГ-ММ-ДД или ДД.ММ.ГГГГ' 
+        });
+      }
+      body.delivery_date = normalized;
+    }
+
+    const order = await orderService.createOrder(userId, body);
 
     // Отправляем уведомление пользователю (если он привязан к VK)
     const user = await User.findByPk(userId);
@@ -22,6 +53,7 @@ exports.createOrder = async (req, res, next) => {
       order,
     });
   } catch (err) {
+    console.error('Ошибка создания заказа:', err);
     next(err);
   }
 };
