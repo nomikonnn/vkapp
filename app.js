@@ -1,19 +1,29 @@
 const express = require('express');
-const cors = require('cors'); // Только одно объявление!
+const cors = require('cors');
 const helmet = require('helmet');
 const { errorHandler } = require('./middleware/errorHandler');
 const routes = require('./routes');
 
-const app = express(); // Объявляем ДО использования!
+const app = express();
 
-// CORS - только ОДНА настройка!
+// CORS
 app.use(cors({
-  origin: [
-    'https://vk.com',
-    'https://prod-app54587418-e3807501de96.pages-ac.vk-apps.com',
-    'http://localhost:5173',
-    'http://localhost:5174' // На случай если порт занят
-  ],
+  origin: (origin, callback) => {
+    const allowedOrigins = [
+      'https://vk.com',
+      /^https:\/\/prod-app54587418-[a-z0-9]+\.pages-ac\.vk-apps\.com$/, // Регулярка для всех URL VK Hosting
+      'http://localhost:5173',
+      'http://localhost:5174'
+    ];
+    
+    if (!origin || allowedOrigins.some(allowed => 
+      typeof allowed === 'string' ? allowed === origin : allowed.test(origin)
+    )) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
