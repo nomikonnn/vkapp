@@ -1,21 +1,52 @@
+// backend/models/index.js
+require('dotenv').config();
 const { Sequelize } = require('sequelize');
 
-// Жёстко заданные параметры для Railway MySQL (временно)
-const sequelize = new Sequelize(
-  'railway',                               // база данных
-  'root',                                  // пользователь
-  'xQLVlhvPTvVIIoJNQnaDcWoQzJBeFjdX',     // пароль
-  {
-    host: 'mysql.railway.internal',
-    port: 3306,
-    dialect: 'mysql',
-    logging: false,
-    define: {
-      timestamps: true,
-      underscored: true,
-    }
-  }
-);
+// Поддержка переменных Railway (MYSQL*) и стандартных (DB_*)
+const dbName = process.env.DB_NAME || process.env.MYSQLDATABASE;
+const dbUser = process.env.DB_USER || process.env.MYSQLUSER;
+const dbPassword = process.env.DB_PASSWORD || process.env.MYSQLPASSWORD;
+const dbHost = process.env.DB_HOST || process.env.MYSQLHOST;
+const dbPort = process.env.DB_PORT || process.env.MYSQLPORT || 3306;
+
+// Проверка обязательных переменных
+if (!dbName || !dbUser || !dbPassword || !dbHost) {
+  console.error('❌ Отсутствуют обязательные переменные окружения для БД');
+  console.error('Требуются: DB_NAME (или MYSQLDATABASE), DB_USER (или MYSQLUSER),');
+  console.error('DB_PASSWORD (или MYSQLPASSWORD), DB_HOST (или MYSQLHOST)');
+  console.error('\nТекущие значения:');
+  console.error('DB_NAME/MYSQLDATABASE:', dbName || 'не задано');
+  console.error('DB_USER/MYSQLUSER:', dbUser || 'не задано');
+  console.error('DB_HOST/MYSQLHOST:', dbHost || 'не задано');
+  process.exit(1);
+}
+
+const sequelize = new Sequelize(dbName, dbUser, dbPassword, {
+  host: dbHost,
+  port: dbPort,
+  dialect: 'mysql',
+  logging: process.env.NODE_ENV === 'development' ? console.log : false,
+  define: {
+    timestamps: true,
+    underscored: true,
+  },
+  pool: {
+    max: 5,
+    min: 0,
+    acquire: 30000,
+    idle: 10000,
+  },
+});
+
+// Проверка подключения к БД
+sequelize
+  .authenticate()
+  .then(() => {
+    console.log('✅ Подключение к базе данных установлено');
+  })
+  .catch((err) => {
+    console.error('❌ Ошибка подключения к базе данных:', err.message);
+  });
 
 // Импорт всех моделей
 const User = require('./User')(sequelize, Sequelize.DataTypes);
@@ -33,24 +64,17 @@ const Question = require('./Question')(sequelize, Sequelize.DataTypes);
 const Faq = require('./Faq')(sequelize, Sequelize.DataTypes);
 const AboutPage = require('./AboutPage')(sequelize, Sequelize.DataTypes);
 
-// Определение связей (без изменений)
+// Определение связей
 User.hasMany(Cart, { foreignKey: 'user_id', onDelete: 'CASCADE' });
 User.hasMany(Favorite, { foreignKey: 'user_id', onDelete: 'CASCADE' });
 User.hasMany(Order, { foreignKey: 'user_id', onDelete: 'RESTRICT' });
 User.hasMany(Review, { foreignKey: 'user_id', onDelete: 'CASCADE' });
 User.hasMany(Question, { foreignKey: 'user_id', onDelete: 'CASCADE' });
 
-Category.hasMany(Product, { foreignKey: 'category_id', onDelete: 'RESTRICT' });
-
-Product.belongsTo(Category, { foreignKey: 'category_id' });
 Product.hasMany(Cart, { foreignKey: 'product_id', onDelete: 'CASCADE' });
 Product.hasMany(Favorite, { foreignKey: 'product_id', onDelete: 'CASCADE' });
 Product.hasMany(OrderItem, { foreignKey: 'product_id', onDelete: 'RESTRICT' });
-Product.hasMany(Review, { foreignKey: 'product_id', onDelete: 'CASCADE' });
 Product.hasMany(Question, { foreignKey: 'product_id', onDelete: 'CASCADE' });
-Product.hasMany(ProductImage, { foreignKey: 'product_id', as: 'images', onDelete: 'CASCADE' });
-
-ProductImage.belongsTo(Product, { foreignKey: 'product_id' });
 
 Cart.belongsTo(User, { foreignKey: 'user_id' });
 Cart.belongsTo(Product, { foreignKey: 'product_id' });
@@ -69,9 +93,6 @@ OrderItem.belongsTo(Product, { foreignKey: 'product_id' });
 Payment.belongsTo(Order, { foreignKey: 'order_id' });
 Delivery.belongsTo(Order, { foreignKey: 'order_id' });
 
-Review.belongsTo(User, { foreignKey: 'user_id' });
-Review.belongsTo(Product, { foreignKey: 'product_id' });
-
 Question.belongsTo(User, { foreignKey: 'user_id' });
 Question.belongsTo(Product, { foreignKey: 'product_id' });
 Question.belongsTo(User, { as: 'answeredByUser', foreignKey: 'answered_by' });
@@ -79,8 +100,18 @@ Question.belongsTo(User, { as: 'answeredByUser', foreignKey: 'answered_by' });
 module.exports = {
   sequelize,
   Sequelize,
-  User, Category, Product, ProductImage,
-  Cart, Favorite, Order, OrderItem,
-  Payment, Delivery, Review, Question,
-  Faq, AboutPage
+  User,
+  Category,
+  Product,
+  ProductImage,
+  Cart,
+  Favorite,
+  Order,
+  OrderItem,
+  Payment,
+  Delivery,
+  Review,
+  Question,
+  Faq,
+  AboutPage,
 };
