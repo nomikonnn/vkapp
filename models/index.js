@@ -85,7 +85,6 @@ Object.keys(sequelize.models).forEach((modelName) => {
 });
 
 // Определение связей
-Product.belongsTo(Category, { foreignKey: 'category_id', as: 'category' });
 Category.hasMany(Product, { foreignKey: 'category_id' });
 
 User.hasMany(Cart, { foreignKey: 'user_id', onDelete: 'CASCADE' });
