@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { body, validationResult } = require('express-validator');
-const Category = require('../models/Category');
+const { Category } = require('../models'); // ВАЖНО: деструктуризация!
 const authenticateToken = require('../middleware/authenticateToken');
 const checkAdmin = require('../middleware/checkAdmin');
 
