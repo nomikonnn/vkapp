@@ -14,9 +14,10 @@ module.exports = async (req, res, next) => {
     
     // Проверка токена
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const userId = decoded.userId || decoded.id;
     
     // Загрузка пользователя из БД
-    const user = await User.findByPk(decoded.id);
+    const user = await User.findByPk(userId);
     
     if (!user) {
       return res.status(401).json({ message: 'Пользователь не найден' });
