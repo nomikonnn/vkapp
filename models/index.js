@@ -2,23 +2,33 @@
 require('dotenv').config();
 const { Sequelize } = require('sequelize');
 
-// Проверка обязательных переменных окружения
-const requiredEnvVars = ['DB_NAME', 'DB_USER', 'DB_PASSWORD', 'DB_HOST'];
-const missingVars = requiredEnvVars.filter(varName => !process.env[varName]);
+// Поддержка переменных Railway (MYSQL*) и стандартных (DB_*)
+const dbName = process.env.DB_NAME || process.env.MYSQLDATABASE || 'railway';
+const dbUser = process.env.DB_USER || process.env.MYSQLUSER || 'root';
+const dbPassword = process.env.DB_PASSWORD || process.env.MYSQLPASSWORD;
+const dbHost = process.env.DB_HOST || process.env.MYSQLHOST || 'localhost';
+const dbPort = process.env.DB_PORT || process.env.MYSQLPORT || 3306;
 
-if (missingVars.length > 0) {
-  console.error('❌ Отсутствуют обязательные переменные окружения:', missingVars.join(', '));
-  console.error('Пожалуйста, настройте переменные в файле .env или в настройках хостинга');
+// Проверка только пароля (он не должен быть пустым)
+if (!dbPassword) {
+  console.error('❌ Отсутствует DB_PASSWORD или MYSQLPASSWORD');
+  console.error('Установите переменную окружения с паролем от БД');
   process.exit(1);
 }
 
+console.log('🔧 Подключение к БД:');
+console.log('  Host:', dbHost);
+console.log('  Port:', dbPort);
+console.log('  Database:', dbName);
+console.log('  User:', dbUser);
+
 const sequelize = new Sequelize(
-  process.env.DB_NAME,
-  process.env.DB_USER,
-  process.env.DB_PASSWORD,
+  dbName,
+  dbUser,
+  dbPassword,
   {
-    host: process.env.DB_HOST,
-    port: process.env.DB_PORT || 3306,
+    host: dbHost,
+    port: dbPort,
     dialect: 'mysql',
     logging: process.env.NODE_ENV === 'development' ? console.log : false,
     define: {
