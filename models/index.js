@@ -1,41 +1,38 @@
+// backend/models/index.js
 require('dotenv').config();
 const { Sequelize } = require('sequelize');
 
-// Поддержка переменных Railway (MYSQL*) и стандартных (DB_*)
-const dbName = process.env.DB_NAME || process.env.MYSQLDATABASE;
-const dbUser = process.env.DB_USER || process.env.MYSQLUSER;
-const dbPassword = process.env.DB_PASSWORD || process.env.MYSQLPASSWORD;
-const dbHost = process.env.DB_HOST || process.env.MYSQLHOST;
-const dbPort = process.env.DB_PORT || process.env.MYSQLPORT || 3306;
+// Проверка обязательных переменных окружения
+const requiredEnvVars = ['DB_NAME', 'DB_USER', 'DB_PASSWORD', 'DB_HOST'];
+const missingVars = requiredEnvVars.filter(varName => !process.env[varName]);
 
-// Проверка обязательных переменных
-if (!dbName || !dbUser || !dbPassword || !dbHost) {
-  console.error('❌ Отсутствуют обязательные переменные окружения для БД');
-  console.error('Требуются: DB_NAME (или MYSQLDATABASE), DB_USER (или MYSQLUSER),');
-  console.error('DB_PASSWORD (или MYSQLPASSWORD), DB_HOST (или MYSQLHOST)');
-  console.error('\nТекущие значения:');
-  console.error('DB_NAME/MYSQLDATABASE:', dbName || 'не задано');
-  console.error('DB_USER/MYSQLUSER:', dbUser || 'не задано');
-  console.error('DB_HOST/MYSQLHOST:', dbHost || 'не задано');
+if (missingVars.length > 0) {
+  console.error('❌ Отсутствуют обязательные переменные окружения:', missingVars.join(', '));
+  console.error('Пожалуйста, настройте переменные в файле .env или в настройках хостинга');
   process.exit(1);
 }
 
-const sequelize = new Sequelize(dbName, dbUser, dbPassword, {
-  host: dbHost,
-  port: dbPort,
-  dialect: 'mysql',
-  logging: process.env.NODE_ENV === 'development' ? console.log : false,
-  define: {
-    timestamps: true,
-    underscored: true,
-  },
-  pool: {
-    max: 5,
-    min: 0,
-    acquire: 30000,
-    idle: 10000,
-  },
-});
+const sequelize = new Sequelize(
+  process.env.DB_NAME,
+  process.env.DB_USER,
+  process.env.DB_PASSWORD,
+  {
+    host: process.env.DB_HOST,
+    port: process.env.DB_PORT || 3306,
+    dialect: 'mysql',
+    logging: process.env.NODE_ENV === 'development' ? console.log : false,
+    define: {
+      timestamps: true,
+      underscored: true,
+    },
+    pool: {
+      max: 5,
+      min: 0,
+      acquire: 30000,
+      idle: 10000,
+    },
+  }
+);
 
 // Проверка подключения к БД
 sequelize
