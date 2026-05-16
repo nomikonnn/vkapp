@@ -133,18 +133,36 @@ exports.getAllOrders = async (req, res, next) => {
     const where = {};
     if (req.query.status) where.status = req.query.status;
 
+    // Загружаем заказы без User
     const orders = await Order.findAll({
       where,
       include: [
-        { model: OrderItem, as: 'items' },
-        { model: Payment, as: 'payment' },
-        { model: Delivery, as: 'delivery' },
-        { model: User, attributes: ['id', 'vk_id', 'first_name', 'last_name', 'email', 'phone'] },
+        { model: OrderItem, as: 'items', required: false },
+        { model: Payment, as: 'payment', required: false },
+        { model: Delivery, as: 'delivery', required: false },
       ],
       order: [['created_at', 'DESC']],
     });
-    res.json(orders);
+
+    // Загружаем пользователей отдельно
+    const userIds = [...new Set(orders.map(o => o.user_id).filter(Boolean))];
+    const users = userIds.length > 0 
+      ? await User.findAll({
+          where: { id: userIds },
+          attributes: ['id', 'vk_id', 'first_name', 'last_name', 'email', 'phone'],
+        })
+      : [];
+    const userMap = Object.fromEntries(users.map(u => [u.id, u.toJSON()]));
+
+    // Объединяем
+    const result = orders.map(o => ({
+      ...o.toJSON(),
+      user: userMap[o.user_id] || null,
+    }));
+
+    res.json(result);
   } catch (err) {
+    console.error('getAllOrders error:', err);
     next(err);
   }
 };
@@ -154,9 +172,8 @@ exports.updateOrderStatus = async (req, res, next) => {
     const { status } = req.body;
     const order = await Order.findByPk(req.params.id, {
       include: [
-        { model: Payment, as: 'payment' },
-        { model: Delivery, as: 'delivery' },
-        { model: User, attributes: ['id', 'vk_id', 'first_name'] }, // ← явно запрашиваем vk_id
+        { model: Payment, as: 'payment', required: false },
+        { model: Delivery, as: 'delivery', required: false },
       ],
     });
     if (!order) return res.status(404).json({ error: 'Заказ не найден' });
@@ -183,28 +200,25 @@ exports.updateOrderStatus = async (req, res, next) => {
     order.status = status;
     await order.save();
 
-    if (order.User) {
-      switch (status) {
-        case 'confirmed':
-          await notificationService.notifyOrderConfirmed(order.User, order.id);
-          break;
-        case 'paid':
-          await notificationService.notifyOrderPaid(order.User, order.id);
-          break;
-        case 'shipped':
-          await notificationService.notifyOrderShipped(order.User, order.id);
-          break;
-        case 'delivered':
-          await notificationService.notifyOrderDelivered(order.User, order.id);
-          break;
-        case 'cancelled':
-          await notificationService.notifyOrderCancelled(order.User, order.id);
-          break;
+    // Уведомление пользователю
+    try {
+      const user = await User.findByPk(order.user_id);
+      if (user) {
+        switch (status) {
+          case 'confirmed': await notificationService.notifyOrderConfirmed(user, order.id); break;
+          case 'paid': await notificationService.notifyOrderPaid(user, order.id); break;
+          case 'shipped': await notificationService.notifyOrderShipped(user, order.id); break;
+          case 'delivered': await notificationService.notifyOrderDelivered(user, order.id); break;
+          case 'cancelled': await notificationService.notifyOrderCancelled(user, order.id); break;
+        }
       }
+    } catch (notifyErr) {
+      console.error('Notification error:', notifyErr);
     }
 
     res.json(order);
   } catch (err) {
+    console.error('updateOrderStatus error:', err);
     next(err);
   }
 };
@@ -267,14 +281,34 @@ exports.getAllQuestions = async (req, res, next) => {
   try {
     const questions = await Question.findAll({
       include: [
-        { model: User, attributes: ['id', 'first_name', 'last_name'] },
-        { model: Product, attributes: ['id', 'name', 'slug'] },
-        { model: User, as: 'answeredByUser', attributes: ['id', 'first_name', 'last_name'] },
+        { model: Product, attributes: ['id', 'name', 'slug'], required: false },
       ],
       order: [['created_at', 'DESC']],
     });
-    res.json(questions);
+
+    // Загружаем пользователей отдельно
+    const userIds = [...new Set([
+      ...questions.map(q => q.user_id),
+      ...questions.map(q => q.answered_by),
+    ].filter(Boolean))];
+    
+    const users = userIds.length > 0
+      ? await User.findAll({
+          where: { id: userIds },
+          attributes: ['id', 'first_name', 'last_name'],
+        })
+      : [];
+    const userMap = Object.fromEntries(users.map(u => [u.id, u.toJSON()]));
+
+    const result = questions.map(q => ({
+      ...q.toJSON(),
+      user: userMap[q.user_id] || null,
+      answered_by_user: userMap[q.answered_by] || null,
+    }));
+
+    res.json(result);
   } catch (err) {
+    console.error('getAllQuestions error:', err);
     next(err);
   }
 };

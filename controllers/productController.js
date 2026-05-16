@@ -1,22 +1,54 @@
+// backend/controllers/productController.js
+const { Op } = require('sequelize');
 const productService = require('../services/productService');
-const { Product } = require('../models'); // импорт модели Product
+const { Product, ProductImage, Category } = require('../models');
 
 /**
  * GET /api/products
- * Список товаров с фильтрацией, поиском, сортировкой, пагинацией.
+ * Список товаров с картинками
  */
 exports.getProducts = async (req, res, next) => {
   try {
-    const result = await productService.getProducts(req.query);
-    res.json(result);
+    const { category, search, page = 1, limit = 12 } = req.query;
+    
+    const where = {};
+    
+    // Фильтр по активности (если поле существует)
+    if (Product.rawAttributes.is_active) {
+      where.is_active = true;
+    }
+    
+    if (category) where.category_id = category;
+    if (search) where.name = { [Op.like]: `%${search}%` };
+    
+    const offset = (parseInt(page) - 1) * parseInt(limit);
+    
+    const { count, rows } = await Product.findAndCountAll({
+      where,
+      include: [
+        { model: ProductImage, as: 'images', required: false },
+        { model: Category, as: 'category', required: false },
+      ],
+      limit: parseInt(limit),
+      offset,
+      order: [['created_at', 'DESC']],
+      distinct: true,
+    });
+    
+    res.json({
+      products: rows,
+      total: count,
+      page: parseInt(page),
+      pages: Math.ceil(count / parseInt(limit)),
+    });
   } catch (err) {
+    console.error('getProducts error:', err);
     next(err);
   }
 };
 
 /**
  * GET /api/products/:slug
- * Детальная информация о товаре.
  */
 exports.getProductBySlug = async (req, res, next) => {
   try {
@@ -30,10 +62,6 @@ exports.getProductBySlug = async (req, res, next) => {
   }
 };
 
-/**
- * POST /api/products
- * Создание товара (администратор).
- */
 exports.createProduct = async (req, res, next) => {
   try {
     const product = await Product.create(req.body);
@@ -43,10 +71,6 @@ exports.createProduct = async (req, res, next) => {
   }
 };
 
-/**
- * PUT /api/products/:id
- * Обновление товара (администратор).
- */
 exports.updateProduct = async (req, res, next) => {
   try {
     const product = await Product.findByPk(req.params.id);
@@ -60,10 +84,6 @@ exports.updateProduct = async (req, res, next) => {
   }
 };
 
-/**
- * DELETE /api/products/:id
- * Удаление товара (администратор).
- */
 exports.deleteProduct = async (req, res, next) => {
   try {
     const product = await Product.findByPk(req.params.id);
