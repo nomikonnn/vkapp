@@ -1,9 +1,5 @@
-const { Cart, Product } = require('../models');
+const { Cart, Product, ProductImage } = require('../models');
 
-/**
- * GET /api/cart
- * Получить корзину текущего пользователя.
- */
 exports.getCart = async (req, res, next) => {
   try {
     const cartItems = await Cart.findAll({
@@ -12,11 +8,11 @@ exports.getCart = async (req, res, next) => {
         {
           model: Product,
           attributes: ['id', 'name', 'slug', 'price', 'old_price', 'stock', 'is_active'],
+          include: [{ model: ProductImage, as: 'images', required: false }],
         },
       ],
       order: [['added_at', 'DESC']],
     });
-
     res.json(cartItems);
   } catch (err) {
     next(err);

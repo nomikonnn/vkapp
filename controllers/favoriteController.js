@@ -1,9 +1,5 @@
-const { Favorite, Product } = require('../models');
+const { Favorite, Product, ProductImage } = require('../models');
 
-/**
- * GET /api/favorites
- * Получить список избранного текущего пользователя.
- */
 exports.getFavorites = async (req, res, next) => {
   try {
     const favorites = await Favorite.findAll({
@@ -12,11 +8,11 @@ exports.getFavorites = async (req, res, next) => {
         {
           model: Product,
           attributes: ['id', 'name', 'slug', 'price', 'old_price', 'rating', 'stock', 'is_active'],
+          include: [{ model: ProductImage, as: 'images', required: false }],
         },
       ],
       order: [['added_at', 'DESC']],
     });
-
     res.json(favorites);
   } catch (err) {
     next(err);
