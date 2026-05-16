@@ -103,12 +103,21 @@ Review.belongsTo(User, { foreignKey: 'user_id' });
 Review.belongsTo(Product, { foreignKey: 'product_id' });
 
 Order.belongsTo(User, { foreignKey: 'user_id' });
-Order.hasMany(OrderItem, { foreignKey: 'order_id', onDelete: 'CASCADE' });
-Order.hasOne(Payment, { foreignKey: 'order_id', onDelete: 'RESTRICT' });
-Order.hasOne(Delivery, { foreignKey: 'order_id', onDelete: 'RESTRICT' });
-
-OrderItem.belongsTo(Order, { foreignKey: 'order_id' });
-OrderItem.belongsTo(Product, { foreignKey: 'product_id' });
+Order.hasMany(OrderItem, { 
+  foreignKey: 'order_id', 
+  onDelete: 'CASCADE',
+  as: 'items'
+});
+Order.hasOne(Payment, { 
+  foreignKey: 'order_id', 
+  onDelete: 'RESTRICT',
+  as: 'payment'
+});
+Order.hasOne(Delivery, { 
+  foreignKey: 'order_id', 
+  onDelete: 'RESTRICT',
+  as: 'delivery'
+});
 
 Payment.belongsTo(Order, { foreignKey: 'order_id' });
 Delivery.belongsTo(Order, { foreignKey: 'order_id' });
