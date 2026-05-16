@@ -71,25 +71,24 @@ const Faq = require('./Faq')(sequelize, Sequelize.DataTypes);
 const AboutPage = require('./AboutPage')(sequelize, Sequelize.DataTypes);
 
 // Вызов associate для всех моделей (ПОСЛЕ ИМПОРТА!)
+// Вызов associate для всех моделей (модели сами определяют свои связи)
 Object.keys(sequelize.models).forEach((modelName) => {
   if (sequelize.models[modelName].associate) {
     sequelize.models[modelName].associate(sequelize.models);
   }
 });
 
-// Определение связей
+// Дополнительные связи, которых нет в моделях
 Product.belongsTo(Category, { foreignKey: 'category_id' });
 Category.hasMany(Product, { foreignKey: 'category_id' });
 
 User.hasMany(Cart, { foreignKey: 'user_id', onDelete: 'CASCADE' });
 User.hasMany(Favorite, { foreignKey: 'user_id', onDelete: 'CASCADE' });
-User.hasMany(Order, { foreignKey: 'user_id', onDelete: 'RESTRICT' });
 User.hasMany(Review, { foreignKey: 'user_id', onDelete: 'CASCADE' });
 User.hasMany(Question, { foreignKey: 'user_id', onDelete: 'CASCADE' });
 
 Product.hasMany(Cart, { foreignKey: 'product_id', onDelete: 'CASCADE' });
 Product.hasMany(Favorite, { foreignKey: 'product_id', onDelete: 'CASCADE' });
-Product.hasMany(OrderItem, { foreignKey: 'product_id', onDelete: 'RESTRICT' });
 Product.hasMany(Review, { foreignKey: 'product_id', onDelete: 'CASCADE' });
 Product.hasMany(Question, { foreignKey: 'product_id', onDelete: 'CASCADE' });
 
@@ -102,25 +101,7 @@ Favorite.belongsTo(Product, { foreignKey: 'product_id' });
 Review.belongsTo(User, { foreignKey: 'user_id' });
 Review.belongsTo(Product, { foreignKey: 'product_id' });
 
-Order.belongsTo(User, { foreignKey: 'user_id' });
-Order.hasMany(OrderItem, { 
-  foreignKey: 'order_id', 
-  onDelete: 'CASCADE',
-  as: 'items'
-});
-Order.hasOne(Payment, { 
-  foreignKey: 'order_id', 
-  onDelete: 'RESTRICT',
-  as: 'payment'
-});
-Order.hasOne(Delivery, { 
-  foreignKey: 'order_id', 
-  onDelete: 'RESTRICT',
-  as: 'delivery'
-});
-
-Payment.belongsTo(Order, { foreignKey: 'order_id' });
-Delivery.belongsTo(Order, { foreignKey: 'order_id' });
+OrderItem.belongsTo(Product, { foreignKey: 'product_id' });
 
 Question.belongsTo(User, { foreignKey: 'user_id' });
 Question.belongsTo(Product, { foreignKey: 'product_id' });
