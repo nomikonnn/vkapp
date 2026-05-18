@@ -1,30 +1,16 @@
-// backend/controllers/adminController.js
 const notificationService = require('../services/notificationService');
 const {
-  Product,
-  ProductImage,
-  Order,
-  OrderItem,
-  Payment,
-  Delivery,
-  Review,
-  Question,
-  User,
-  Category,
-  sequelize,
+  Product, ProductImage, Order, OrderItem,
+  Payment, Delivery, Review, Question, User, Category, sequelize,
 } = require('../models');
 
-// ---------- УТИЛИТА ДЛЯ SLUG ----------
 const slugify = (str) =>
-  str
-    .toLowerCase()
+  str.toLowerCase()
     .replace(/[^a-zа-яё0-9\s-]/gi, '')
     .trim()
-    .replace(/\s+/g, '-') +
-  '-' +
-  Date.now();
+    .replace(/\s+/g, '-') + '-' + Date.now();
 
-// ---------- УПРАВЛЕНИЕ ТОВАРАМИ ----------
+// ---------- ТОВАРЫ ----------
 exports.getAllProducts = async (req, res, next) => {
   try {
     const products = await Product.findAll({
@@ -32,33 +18,26 @@ exports.getAllProducts = async (req, res, next) => {
       order: [['created_at', 'DESC']],
     });
     res.json(products);
-  } catch (err) {
-    next(err);
-  }
+  } catch (err) { next(err); }
 };
 
 exports.createProduct = async (req, res, next) => {
   try {
     const { images, ...productData } = req.body;
-
-    if (!productData.slug) {
-      productData.slug = slugify(productData.name || 'product');
-    }
+    if (!productData.slug) productData.slug = slugify(productData.name || 'product');
 
     const validImages = (images || []).filter(
-      (url) => typeof url === 'string' && /^https?:\/\/.+/.test(url.trim())
+      url => typeof url === 'string' && /^https?:\/\/.+/.test(url.trim())
     );
 
     const product = await Product.create(productData);
 
     if (validImages.length) {
-      const imageRecords = validImages.map((url) => ({
-        product_id: product.id,
-        image_url: url.trim(),
-        is_main: false,
-        sort_order: 0,
-      }));
-      await ProductImage.bulkCreate(imageRecords);
+      await ProductImage.bulkCreate(
+        validImages.map(url => ({
+          product_id: product.id, image_url: url.trim(), is_main: false, sort_order: 0,
+        }))
+      );
     }
 
     const result = await Product.findByPk(product.id, {
@@ -68,9 +47,7 @@ exports.createProduct = async (req, res, next) => {
       ],
     });
     res.status(201).json(result);
-  } catch (err) {
-    next(err);
-  }
+  } catch (err) { next(err); }
 };
 
 exports.updateProduct = async (req, res, next) => {
@@ -79,28 +56,21 @@ exports.updateProduct = async (req, res, next) => {
     if (!product) return res.status(404).json({ error: 'Товар не найден' });
 
     const { images, ...productData } = req.body;
-
-    if (productData.name && !productData.slug) {
-      productData.slug = slugify(productData.name);
-    }
+    if (productData.name && !productData.slug) productData.slug = slugify(productData.name);
 
     await product.update(productData);
 
     if (images !== undefined) {
       await ProductImage.destroy({ where: { product_id: product.id } });
-
       const validImages = (images || []).filter(
-        (url) => typeof url === 'string' && /^https?:\/\/.+/.test(url.trim())
+        url => typeof url === 'string' && /^https?:\/\/.+/.test(url.trim())
       );
-
       if (validImages.length) {
-        const imageRecords = validImages.map((url) => ({
-          product_id: product.id,
-          image_url: url.trim(),
-          is_main: false,
-          sort_order: 0,
-        }));
-        await ProductImage.bulkCreate(imageRecords);
+        await ProductImage.bulkCreate(
+          validImages.map(url => ({
+            product_id: product.id, image_url: url.trim(), is_main: false, sort_order: 0,
+          }))
+        );
       }
     }
 
@@ -111,9 +81,7 @@ exports.updateProduct = async (req, res, next) => {
       ],
     });
     res.json(result);
-  } catch (err) {
-    next(err);
-  }
+  } catch (err) { next(err); }
 };
 
 exports.deleteProduct = async (req, res, next) => {
@@ -122,31 +90,28 @@ exports.deleteProduct = async (req, res, next) => {
     if (!product) return res.status(404).json({ error: 'Товар не найден' });
     await product.destroy();
     res.status(204).end();
-  } catch (err) {
-    next(err);
-  }
+  } catch (err) { next(err); }
 };
 
-// ---------- УПРАВЛЕНИЕ ЗАКАЗАМИ ----------
+// ---------- ЗАКАЗЫ ----------
 exports.getAllOrders = async (req, res, next) => {
   try {
     const where = {};
     if (req.query.status) where.status = req.query.status;
 
-    // Загружаем заказы без User
     const orders = await Order.findAll({
       where,
       include: [
-        { model: OrderItem, as: 'items', required: false },
-        { model: Payment, as: 'payment', required: false },
-        { model: Delivery, as: 'delivery', required: false },
+        { model: OrderItem, as: 'items',    required: false },
+        { model: Payment,   as: 'payment',  required: false },
+        { model: Delivery,  as: 'delivery', required: false },
       ],
       order: [['created_at', 'DESC']],
     });
 
-    // Загружаем пользователей отдельно
+    // Загружаем пользователей отдельно (обходим возможные проблемы с ассоциацией)
     const userIds = [...new Set(orders.map(o => o.user_id).filter(Boolean))];
-    const users = userIds.length > 0 
+    const users = userIds.length > 0
       ? await User.findAll({
           where: { id: userIds },
           attributes: ['id', 'vk_id', 'first_name', 'last_name', 'email', 'phone'],
@@ -154,7 +119,6 @@ exports.getAllOrders = async (req, res, next) => {
       : [];
     const userMap = Object.fromEntries(users.map(u => [u.id, u.toJSON()]));
 
-    // Объединяем
     const result = orders.map(o => ({
       ...o.toJSON(),
       user: userMap[o.user_id] || null,
@@ -172,7 +136,7 @@ exports.updateOrderStatus = async (req, res, next) => {
     const { status } = req.body;
     const order = await Order.findByPk(req.params.id, {
       include: [
-        { model: Payment, as: 'payment', required: false },
+        { model: Payment,  as: 'payment',  required: false },
         { model: Delivery, as: 'delivery', required: false },
       ],
     });
@@ -184,7 +148,7 @@ exports.updateOrderStatus = async (req, res, next) => {
     }
 
     if (status === 'paid' && order.payment) {
-      order.payment.status = 'completed';
+      order.payment.status  = 'completed';
       order.payment.paid_at = new Date();
       await order.payment.save();
     }
@@ -200,14 +164,14 @@ exports.updateOrderStatus = async (req, res, next) => {
     order.status = status;
     await order.save();
 
-    // Уведомление пользователю
+    // Уведомление пользователю через бота
     try {
       const user = await User.findByPk(order.user_id);
       if (user) {
         switch (status) {
           case 'confirmed': await notificationService.notifyOrderConfirmed(user, order.id); break;
-          case 'paid': await notificationService.notifyOrderPaid(user, order.id); break;
-          case 'shipped': await notificationService.notifyOrderShipped(user, order.id); break;
+          case 'paid':      await notificationService.notifyOrderPaid(user, order.id);      break;
+          case 'shipped':   await notificationService.notifyOrderShipped(user, order.id);   break;
           case 'delivered': await notificationService.notifyOrderDelivered(user, order.id); break;
           case 'cancelled': await notificationService.notifyOrderCancelled(user, order.id); break;
         }
@@ -223,20 +187,31 @@ exports.updateOrderStatus = async (req, res, next) => {
   }
 };
 
-// ---------- УПРАВЛЕНИЕ ОТЗЫВАМИ ----------
+// Удаление заказа (добавлено)
+exports.deleteOrder = async (req, res, next) => {
+  try {
+    const order = await Order.findByPk(req.params.id);
+    if (!order) return res.status(404).json({ error: 'Заказ не найден' });
+    await order.destroy();
+    res.status(204).end();
+  } catch (err) {
+    console.error('deleteOrder error:', err);
+    next(err);
+  }
+};
+
+// ---------- ОТЗЫВЫ ----------
 exports.getAllReviews = async (req, res, next) => {
   try {
     const reviews = await Review.findAll({
       include: [
-        { model: User, attributes: ['id', 'first_name', 'last_name'] },
-        { model: Product, attributes: ['id', 'name', 'slug'] },
+        { model: User,    as: 'user',    attributes: ['id', 'first_name', 'last_name'] },
+        { model: Product, as: 'product', attributes: ['id', 'name', 'slug'] },
       ],
       order: [['created_at', 'DESC']],
     });
     res.json(reviews);
-  } catch (err) {
-    next(err);
-  }
+  } catch (err) { next(err); }
 };
 
 exports.updateReview = async (req, res, next) => {
@@ -246,23 +221,21 @@ exports.updateReview = async (req, res, next) => {
     if (!review) return res.status(404).json({ error: 'Отзыв не найден' });
 
     review.rating = rating;
-    review.text = text;
+    review.text   = text;
     await review.save();
 
-    if (review.type === 'product' && review.product_id) {
+    if (review.product_id) {
       const stats = await Review.findAll({
-        where: { product_id: review.product_id, type: 'product' },
+        where: { product_id: review.product_id },
         attributes: [[sequelize.fn('AVG', sequelize.col('rating')), 'avgRating']],
         raw: true,
       });
-      const avg = stats[0].avgRating || 0;
+      const avg = stats[0]?.avgRating || 0;
       await Product.update({ rating: avg }, { where: { id: review.product_id } });
     }
 
     res.json(review);
-  } catch (err) {
-    next(err);
-  }
+  } catch (err) { next(err); }
 };
 
 exports.deleteReview = async (req, res, next) => {
@@ -271,12 +244,10 @@ exports.deleteReview = async (req, res, next) => {
     if (!review) return res.status(404).json({ error: 'Отзыв не найден' });
     await review.destroy();
     res.status(204).end();
-  } catch (err) {
-    next(err);
-  }
+  } catch (err) { next(err); }
 };
 
-// ---------- УПРАВЛЕНИЕ ВОПРОСАМИ ----------
+// ---------- ВОПРОСЫ ----------
 exports.getAllQuestions = async (req, res, next) => {
   try {
     const questions = await Question.findAll({
@@ -286,12 +257,11 @@ exports.getAllQuestions = async (req, res, next) => {
       order: [['created_at', 'DESC']],
     });
 
-    // Загружаем пользователей отдельно
     const userIds = [...new Set([
       ...questions.map(q => q.user_id),
       ...questions.map(q => q.answered_by),
     ].filter(Boolean))];
-    
+
     const users = userIds.length > 0
       ? await User.findAll({
           where: { id: userIds },
@@ -302,7 +272,7 @@ exports.getAllQuestions = async (req, res, next) => {
 
     const result = questions.map(q => ({
       ...q.toJSON(),
-      user: userMap[q.user_id] || null,
+      user:             userMap[q.user_id]     || null,
       answered_by_user: userMap[q.answered_by] || null,
     }));
 
@@ -319,15 +289,13 @@ exports.answerQuestion = async (req, res, next) => {
     const question = await Question.findByPk(req.params.id);
     if (!question) return res.status(404).json({ error: 'Вопрос не найден' });
 
-    question.answer_text = answer_text;
-    question.answered_by = req.user.id;
-    question.answered_at = new Date();
+    question.answer_text  = answer_text;
+    question.answered_by  = req.user.id;
+    question.answered_at  = new Date();
     await question.save();
 
     res.json(question);
-  } catch (err) {
-    next(err);
-  }
+  } catch (err) { next(err); }
 };
 
 exports.deleteQuestion = async (req, res, next) => {
@@ -336,7 +304,5 @@ exports.deleteQuestion = async (req, res, next) => {
     if (!question) return res.status(404).json({ error: 'Вопрос не найден' });
     await question.destroy();
     res.status(204).end();
-  } catch (err) {
-    next(err);
-  }
+  } catch (err) { next(err); }
 };

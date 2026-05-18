@@ -1,12 +1,10 @@
-// backend/routes/admin.routes.js
-const express = require('express');
-const router = express.Router();
+const express      = require('express');
+const router       = express.Router();
 const adminController = require('../controllers/adminController');
-const authMiddleware = require('../middleware/authMiddleware');
+const authMiddleware  = require('../middleware/authMiddleware');
 const adminMiddleware = require('../middleware/adminMiddleware');
 const { body, validationResult } = require('express-validator');
 
-// Все маршруты требуют авторизацию и роль admin
 router.use(authMiddleware, adminMiddleware);
 
 // ---------- КАТЕГОРИИ ----------
@@ -16,18 +14,12 @@ router.use('/categories', categoriesRoutes);
 // ---------- ТОВАРЫ ----------
 router.get('/products', adminController.getAllProducts);
 
-// Валидация для создания товара
 const productValidation = [
-  body('name')
-    .notEmpty().withMessage('Название обязательно')
-    .isLength({ max: 300 }).withMessage('Название не должно превышать 300 символов'),
-  body('price')
-    .isFloat({ min: 0 }).withMessage('Цена должна быть положительным числом'),
-  body('category_id')
-    .isInt({ min: 1 }).withMessage('Категория обязательна'),
-  body('stock')
-    .optional()
-    .isInt({ min: 0 }).withMessage('Количество должно быть неотрицательным целым'),
+  body('name').notEmpty().withMessage('Название обязательно')
+    .isLength({ max: 300 }).withMessage('Не более 300 символов'),
+  body('price').isFloat({ min: 0 }).withMessage('Цена должна быть положительной'),
+  body('category_id').isInt({ min: 1 }).withMessage('Категория обязательна'),
+  body('stock').optional().isInt({ min: 0 }).withMessage('Количество — неотрицательное целое'),
 ];
 
 router.post(
@@ -35,14 +27,11 @@ router.post(
   productValidation,
   (req, res, next) => {
     const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
-    }
+    if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
     next();
   },
   adminController.createProduct
 );
-
 router.put('/products/:id', adminController.updateProduct);
 router.delete('/products/:id', adminController.deleteProduct);
 
@@ -50,13 +39,12 @@ router.delete('/products/:id', adminController.deleteProduct);
 router.get('/orders', adminController.getAllOrders);
 router.put(
   '/orders/:id/status',
-  [
-    body('status')
-      .isIn(['pending', 'confirmed', 'paid', 'shipped', 'delivered', 'cancelled'])
-      .withMessage('Неверный статус'),
-  ],
+  [body('status')
+    .isIn(['pending', 'confirmed', 'paid', 'shipped', 'delivered', 'cancelled'])
+    .withMessage('Неверный статус')],
   adminController.updateOrderStatus
 );
+router.delete('/orders/:id', adminController.deleteOrder); // добавлено
 
 // ---------- ОТЗЫВЫ ----------
 router.get('/reviews', adminController.getAllReviews);
