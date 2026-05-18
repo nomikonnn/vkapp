@@ -1,9 +1,4 @@
-//  отдельный VK-клиент только для API (отправка сообщений)
-const { VK } = require('vk-io');
-
-// Этот экземпляр используется только для vk.api (без поллинга)
-const vk = new VK({
-  token: process.env.VK_TOKEN || '',
-});
-
+// Реэкспортируем vk-экземпляр из bot/index.js
+// чтобы notificationService использовал тот же объект
+const { vk } = require('./index');
 module.exports = vk;

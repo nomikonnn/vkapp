@@ -3,29 +3,28 @@ const { User, Order, OrderItem } = require('../models');
 
 const APP_URL = `https://vk.com/app${process.env.VK_APP_ID}`;
 
-// Отдельный VK-экземпляр для поллинга (не для API-отправки)
+// pollingGroupId убран из конструктора — передаём в start()
 const vk = new VK({
-  token:          process.env.VK_TOKEN || '',
-  pollingGroupId: Number(process.env.VK_GROUP_ID) || 0,
+  token: process.env.VK_TOKEN || '',
 });
 
 // ─── Клавиатуры ─────────────────────────────────────────────────────────────
 
 const mainKeyboard = Keyboard.builder()
-  .textButton({ label: 'Каталог',          payload: { command: 'catalog' },  color: Keyboard.PRIMARY_COLOR })
-  .textButton({ label: 'Личный кабинет',   payload: { command: 'profile' },  color: Keyboard.PRIMARY_COLOR })
+  .textButton({ label: 'Каталог',        payload: { command: 'catalog' }, color: Keyboard.PRIMARY_COLOR })
+  .textButton({ label: 'Личный кабинет', payload: { command: 'profile' }, color: Keyboard.PRIMARY_COLOR })
   .row()
-  .textButton({ label: 'Заказы',           payload: { command: 'orders' },   color: Keyboard.SECONDARY_COLOR })
-  .textButton({ label: 'Поддержка',        payload: { command: 'support' },  color: Keyboard.POSITIVE_COLOR });
+  .textButton({ label: 'Заказы',         payload: { command: 'orders' },  color: Keyboard.SECONDARY_COLOR })
+  .textButton({ label: 'Поддержка',      payload: { command: 'support' }, color: Keyboard.POSITIVE_COLOR });
 
 const cancelKeyboard = Keyboard.builder()
   .textButton({ label: '« Назад', payload: { command: 'cancel' } });
 
-// ─── Хранилище сессий FSM ───────────────────────────────────────────────────
+// ─── Сессии FSM ──────────────────────────────────────────────────────────────
 
 const sessions = new Map();
 
-// ─── Вспомогательные функции ────────────────────────────────────────────────
+// ─── Вспомогательные функции ─────────────────────────────────────────────────
 
 function formatStatus(status) {
   const map = {
@@ -75,7 +74,7 @@ function buildOrderText(order) {
   return lines.join('\n');
 }
 
-// ─── Обработчик сообщений ───────────────────────────────────────────────────
+// ─── Обработчик сообщений ─────────────────────────────────────────────────────
 
 vk.updates.on('message_new', async (context) => {
   const { text, messagePayload, senderId } = context;
@@ -93,7 +92,6 @@ vk.updates.on('message_new', async (context) => {
       return;
     }
 
-    // Сценарий: поддержка
     if (session.scenario === 'support') {
       const question = (text || '').trim();
       if (!question) {
@@ -101,7 +99,7 @@ vk.updates.on('message_new', async (context) => {
         return;
       }
 
-      // 6.4: уведомляем администратора по VK
+      // 6.4: уведомляем администратора
       const adminVkId = process.env.VK_ADMIN_VK_ID;
       if (adminVkId) {
         try {
@@ -117,13 +115,12 @@ vk.updates.on('message_new', async (context) => {
 
       sessions.delete(senderId);
       await context.send({
-        message: '✅ Ваш вопрос принят!\nАдминистратор ответит вам в этом диалоге в ближайшее время.',
+        message:  '✅ Ваш вопрос принят!\nАдминистратор ответит вам в этом диалоге в ближайшее время.',
         keyboard: mainKeyboard,
       });
       return;
     }
 
-    // Неизвестный сценарий
     sessions.delete(senderId);
     await context.send({ message: '↩️ Главное меню:', keyboard: mainKeyboard });
     return;
@@ -134,7 +131,6 @@ vk.updates.on('message_new', async (context) => {
   if (cmd) {
     switch (cmd) {
 
-      // 6.1: Каталог → ссылка на страницу каталога
       case 'catalog':
         await context.send({
           message:  '🎸 Откройте каталог товаров:',
@@ -144,7 +140,6 @@ vk.updates.on('message_new', async (context) => {
         });
         break;
 
-      // 6.1: Личный кабинет → ссылка на страницу профиля
       case 'profile':
         await context.send({
           message:  '👤 Перейти в личный кабинет:',
@@ -154,7 +149,6 @@ vk.updates.on('message_new', async (context) => {
         });
         break;
 
-      // 6.2: Заказы → активные заказы пользователя из БД
       case 'orders': {
         const dbUser = await User.findOne({ where: { vk_id: senderId } });
 
@@ -194,7 +188,6 @@ vk.updates.on('message_new', async (context) => {
         break;
       }
 
-      // 6.4: Поддержка → запуск FSM
       case 'support':
         sessions.set(senderId, { scenario: 'support' });
         await context.send({
@@ -214,7 +207,7 @@ vk.updates.on('message_new', async (context) => {
   const isGreeting = ['начать', 'привет', 'старт', '/start', 'start', 'hello'].some(w => lower.includes(w));
 
   await context.send({
-    message: isGreeting
+    message:  isGreeting
       ? '👋 Добро пожаловать в магазин музыкального оборудования!\n\nВыберите действие:'
       : 'Используйте кнопки меню.',
     keyboard: mainKeyboard,
@@ -223,7 +216,7 @@ vk.updates.on('message_new', async (context) => {
 
 vk.updates.on('error', err => console.error('Bot update error:', err));
 
-// ─── Экспорт ────────────────────────────────────────────────────────────────
+// ─── Запуск ──────────────────────────────────────────────────────────────────
 
 async function startBot() {
   if (!process.env.VK_TOKEN || !process.env.VK_GROUP_ID) {
@@ -231,11 +224,14 @@ async function startBot() {
     return;
   }
   try {
-    await vk.updates.start();
+    // pollingGroupId передаётся в start(), а не в конструктор
+    await vk.updates.start({
+      pollingGroupId: Number(process.env.VK_GROUP_ID),
+    });
     console.log('🤖 VK Bot запущен (long polling)');
   } catch (err) {
     console.error('Ошибка запуска бота:', err.message);
   }
 }
 
-module.exports = { startBot };
+module.exports = { startBot, vk };
