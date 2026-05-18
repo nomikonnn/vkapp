@@ -3,15 +3,13 @@ const { User, Order, OrderItem } = require('../models');
 
 const APP_URL = `https://vk.com/app${process.env.VK_APP_ID}`;
 
-// Добавлены appId, appSecret и pollingGroupId обратно в конструктор
+// Минимальный конструктор — только token и pollingGroupId
 const vk = new VK({
-  token:          process.env.VK_TOKEN        || '',
-  appId:          Number(process.env.VK_APP_ID),
-  appSecret:      process.env.VK_APP_SECRET   || '',
+  token:          process.env.VK_TOKEN,
   pollingGroupId: Number(process.env.VK_GROUP_ID),
 });
 
-// ─── Клавиатуры ─────────────────────────────────────────────────────────────
+// ─── Клавиатуры ──────────────────────────────────────────────────────────────
 
 const mainKeyboard = Keyboard.builder()
   .textButton({ label: 'Каталог',        payload: { command: 'catalog' }, color: Keyboard.PRIMARY_COLOR })
@@ -23,214 +21,147 @@ const mainKeyboard = Keyboard.builder()
 const cancelKeyboard = Keyboard.builder()
   .textButton({ label: '« Назад', payload: { command: 'cancel' } });
 
-// ─── Сессии FSM ──────────────────────────────────────────────────────────────
-
 const sessions = new Map();
 
-// ─── Вспомогательные функции ─────────────────────────────────────────────────
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function formatStatus(status) {
-  const map = {
-    pending:   '⏳ Ожидает подтверждения',
-    confirmed: '✅ Подтверждён',
-    paid:      '💳 Оплачен',
-    shipped:   '🚚 В пути',
-    delivered: '📦 Доставлен',
-    cancelled: '❌ Отменён',
-  };
-  return map[status] || status;
+function formatStatus(s) {
+  return { pending:'⏳ Ожидает', confirmed:'✅ Подтверждён', paid:'💳 Оплачен',
+    shipped:'🚚 В пути', delivered:'📦 Доставлен', cancelled:'❌ Отменён' }[s] || s;
 }
-
-function formatDelivery(type) {
-  return { courier: 'Курьер', post: 'Почта', pickup: 'Самовывоз' }[type] || type;
+function formatDelivery(t) {
+  return { courier:'Курьер', post:'Почта', pickup:'Самовывоз' }[t] || t;
 }
-
 function formatDate(d) {
-  if (!d) return '—';
-  return new Date(d).toLocaleDateString('ru-RU');
+  return d ? new Date(d).toLocaleDateString('ru-RU') : '—';
 }
-
 function formatPrice(v) {
   return Number(v).toLocaleString('ru-RU') + ' ₽';
 }
-
 function buildOrderText(order) {
   const items = (order.items || [])
     .map(i => `  • ${i.product_name} × ${i.quantity} = ${formatPrice(Number(i.price) * i.quantity)}`)
     .join('\n');
-
   const lines = [
     `📦 Заказ #${order.id}`,
-    `📅 Дата оформления: ${formatDate(order.created_at)}`,
-    `📊 Статус: ${formatStatus(order.status)}`,
-    '',
-    'Состав:',
-    items || '  —',
-    '',
+    `📅 ${formatDate(order.created_at)}`,
+    `📊 ${formatStatus(order.status)}`,
+    '', items || '  —', '',
     `💰 Итого: ${formatPrice(order.total_amount)}`,
-    `🚚 Доставка: ${formatDelivery(order.delivery_type)}`,
+    `🚚 ${formatDelivery(order.delivery_type)}`,
   ];
-
-  if (order.delivery_address) lines.push(`📍 Адрес: ${order.delivery_address}`);
-  if (order.delivery_date)    lines.push(`📆 Дата доставки: ${formatDate(order.delivery_date)}`);
-
+  if (order.delivery_address) lines.push(`📍 ${order.delivery_address}`);
+  if (order.delivery_date)    lines.push(`📆 Доставка: ${formatDate(order.delivery_date)}`);
   return lines.join('\n');
 }
 
-// ─── Обработчик сообщений ─────────────────────────────────────────────────────
+// ─── Обработчик ──────────────────────────────────────────────────────────────
 
 vk.updates.on('message_new', async (context) => {
   const { text, messagePayload, senderId } = context;
   const session = sessions.get(senderId);
 
-  // ── Активен FSM ──
   if (session) {
-    const isCancel =
-      messagePayload?.command === 'cancel' ||
-      (text || '').toLowerCase() === 'назад';
-
-    if (isCancel) {
+    if (messagePayload?.command === 'cancel' || (text||'').toLowerCase() === 'назад') {
       sessions.delete(senderId);
-      await context.send({ message: '↩️ Главное меню:', keyboard: mainKeyboard });
-      return;
+      return context.send({ message: '↩️ Главное меню:', keyboard: mainKeyboard });
     }
-
     if (session.scenario === 'support') {
-      const question = (text || '').trim();
-      if (!question) {
-        await context.send('✏️ Напишите ваш вопрос текстом.');
-        return;
-      }
-
-      // 6.4: уведомляем администратора
-      const adminVkId = process.env.VK_ADMIN_VK_ID;
-      if (adminVkId) {
+      const q = (text||'').trim();
+      if (!q) return context.send('✏️ Напишите вопрос текстом.');
+      const adminId = process.env.VK_ADMIN_VK_ID;
+      if (adminId) {
         try {
           await vk.api.messages.send({
-            user_id:   Number(adminVkId),
-            message:   `🆘 Запрос в поддержку\n\nПользователь: vk.com/id${senderId}\n\nСообщение:\n"${question}"\n\nПерейти в диалог: https://vk.com/im?sel=${senderId}`,
-            random_id: Date.now(),
+            user_id: Number(adminId), random_id: Date.now(),
+            message: `🆘 Поддержка\nОт: vk.com/id${senderId}\n\n"${q}"\n\nДиалог: https://vk.com/im?sel=${senderId}`,
           });
-        } catch (e) {
-          console.error('Ошибка уведомления админа:', e.message);
-        }
+        } catch (e) { console.error('Admin notify err:', e.message); }
       }
-
       sessions.delete(senderId);
-      await context.send({
-        message:  '✅ Ваш вопрос принят!\nАдминистратор ответит вам в этом диалоге в ближайшее время.',
-        keyboard: mainKeyboard,
-      });
-      return;
+      return context.send({ message: '✅ Вопрос принят! Админ ответит в этом диалоге.', keyboard: mainKeyboard });
     }
-
     sessions.delete(senderId);
-    await context.send({ message: '↩️ Главное меню:', keyboard: mainKeyboard });
-    return;
+    return context.send({ message: '↩️ Меню:', keyboard: mainKeyboard });
   }
 
-  // ── Команды из кнопок ──
   const cmd = messagePayload?.command;
   if (cmd) {
     switch (cmd) {
-
       case 'catalog':
-        await context.send({
-          message:  '🎸 Откройте каталог товаров:',
-          keyboard: Keyboard.builder()
-            .urlButton({ label: '🛍 Перейти в каталог', url: `${APP_URL}#/catalog` })
-            .inline(),
-        });
-        break;
-
+        return context.send({ message: '🎸 Каталог:', keyboard: Keyboard.builder()
+          .urlButton({ label: '🛍 Открыть каталог', url: `${APP_URL}#/catalog` }).inline() });
       case 'profile':
-        await context.send({
-          message:  '👤 Перейти в личный кабинет:',
-          keyboard: Keyboard.builder()
-            .urlButton({ label: '👤 Личный кабинет', url: `${APP_URL}#/profile` })
-            .inline(),
-        });
-        break;
-
+        return context.send({ message: '👤 Кабинет:', keyboard: Keyboard.builder()
+          .urlButton({ label: '👤 Личный кабинет', url: `${APP_URL}#/profile` }).inline() });
       case 'orders': {
-        const dbUser = await User.findOne({ where: { vk_id: senderId } });
-
-        if (!dbUser) {
-          await context.send({
-            message:  '❗ Вы ещё не зарегистрированы в магазине.\nВойдите через мини-приложение, чтобы видеть заказы.',
-            keyboard: Keyboard.builder()
-              .urlButton({ label: '🔑 Открыть магазин', url: APP_URL })
-              .inline(),
-          });
-          break;
-        }
-
+        const u = await User.findOne({ where: { vk_id: senderId } });
+        if (!u) return context.send({ message: '❗ Войдите через мини-приложение.', keyboard: Keyboard.builder()
+          .urlButton({ label: '🔑 Войти', url: APP_URL }).inline() });
         const orders = await Order.findAll({
-          where:   { user_id: dbUser.id, status: ['pending', 'confirmed', 'paid', 'shipped'] },
+          where: { user_id: u.id, status: ['pending','confirmed','paid','shipped'] },
           include: [{ model: OrderItem, as: 'items' }],
-          order:   [['created_at', 'DESC']],
-          limit:   5,
+          order: [['created_at','DESC']], limit: 5,
         });
-
-        if (orders.length === 0) {
-          await context.send({
-            message:  '📭 У вас нет активных заказов.',
-            keyboard: mainKeyboard,
-          });
-          break;
-        }
-
-        await context.send({
-          message:  `📋 Ваши активные заказы (${orders.length}):`,
-          keyboard: mainKeyboard,
-        });
-
-        for (const order of orders) {
-          await context.send({ message: buildOrderText(order) });
-        }
-        break;
+        if (!orders.length) return context.send({ message: '📭 Активных заказов нет.', keyboard: mainKeyboard });
+        await context.send({ message: `📋 Заказы (${orders.length}):`, keyboard: mainKeyboard });
+        for (const o of orders) await context.send({ message: buildOrderText(o) });
+        return;
       }
-
       case 'support':
         sessions.set(senderId, { scenario: 'support' });
-        await context.send({
-          message:  '💬 Опишите вашу проблему или вопрос.\nАдминистратор ответит в этом диалоге.',
-          keyboard: cancelKeyboard,
-        });
-        break;
-
+        return context.send({ message: '💬 Опишите проблему:', keyboard: cancelKeyboard });
       default:
-        await context.send({ message: 'Используйте кнопки меню.', keyboard: mainKeyboard });
+        return context.send({ message: 'Используйте кнопки.', keyboard: mainKeyboard });
     }
-    return;
   }
 
-  // ── Обычное текстовое сообщение ──
-  const lower = (text || '').toLowerCase();
-  const isGreeting = ['начать', 'привет', 'старт', '/start', 'start', 'hello'].some(w => lower.includes(w));
-
-  await context.send({
-    message:  isGreeting
-      ? '👋 Добро пожаловать в магазин музыкального оборудования!\n\nВыберите действие:'
-      : 'Используйте кнопки меню.',
-    keyboard: mainKeyboard,
-  });
+  const lower = (text||'').toLowerCase();
+  const hi = ['начать','привет','старт','/start'].some(w => lower.includes(w));
+  return context.send({ message: hi ? '👋 Добро пожаловать!\n\nВыберите:' : 'Используйте кнопки.', keyboard: mainKeyboard });
 });
 
-vk.updates.on('error', err => console.error('Bot update error:', err));
-
-// ─── Запуск ──────────────────────────────────────────────────────────────────
+// ─── Запуск с диагностикой ───────────────────────────────────────────────────
 
 async function startBot() {
-  if (!process.env.VK_TOKEN || !process.env.VK_GROUP_ID) {
+  const token   = process.env.VK_TOKEN;
+  const groupId = Number(process.env.VK_GROUP_ID);
+
+  console.log('🔍 Bot debug: token exists =', !!token);
+  console.log('🔍 Bot debug: token starts with =', token?.substring(0, 10) + '...');
+  console.log('🔍 Bot debug: groupId =', groupId, 'isNaN =', isNaN(groupId));
+
+  if (!token || !groupId || isNaN(groupId)) {
     console.warn('⚠️  VK_TOKEN или VK_GROUP_ID не заданы — бот не запущен');
     return;
   }
+
+  // Шаг 1: проверяем что токен вообще рабочий
+  try {
+    const [group] = await vk.api.groups.getById({ group_id: String(groupId) });
+    console.log('✅ Токен валиден, группа:', group.name, '(id:', group.id, ')');
+  } catch (err) {
+    console.error('❌ Токен/группа невалидны:', err.code, err.message);
+    console.error('   Полная ошибка:', JSON.stringify(err, null, 2));
+    return;
+  }
+
+  // Шаг 2: проверяем Long Poll
+  try {
+    const lp = await vk.api.groups.getLongPollServer({ group_id: groupId });
+    console.log('✅ Long Poll сервер получен:', lp.server?.substring(0, 40) + '...');
+  } catch (err) {
+    console.error('❌ Long Poll ошибка:', err.code, err.message);
+    return;
+  }
+
+  // Шаг 3: запускаем поллинг
   try {
     await vk.updates.start();
-    console.log('🤖 VK Bot запущен (long polling)');
+    console.log('🤖 VK Bot запущен');
   } catch (err) {
-    console.error('Ошибка запуска бота:', err.message);
+    console.error('❌ Ошибка vk.updates.start():', err.code, err.message);
+    console.error('   Stack:', err.stack);
   }
 }
 
