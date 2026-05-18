@@ -14,7 +14,10 @@ const slugify = (str) =>
 exports.getAllProducts = async (req, res, next) => {
   try {
     const products = await Product.findAll({
-      include: [{ model: Category, as: 'category' }],
+      include: [
+        { model: Category,      as: 'category' },
+        { model: ProductImage,  as: 'images' },   // ← этой строки не было
+      ],
       order: [['created_at', 'DESC']],
     });
     res.json(products);

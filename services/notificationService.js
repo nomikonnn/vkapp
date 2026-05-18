@@ -1,110 +1,128 @@
-const axios = require('axios');
+const { Order, OrderItem } = require('../models');
 
-const VK_API_URL = 'https://api.vk.com/method/';
-const VK_API_VERSION = '5.199';
-
-/**
- * Отправляет сообщение пользователю ВКонтакте от имени сообщества.
- * @param {number} vkUserId - ID пользователя ВКонтакте
- * @param {string} message - Текст сообщения
- * @param {string|null} appId - ID приложения для кнопки «Личный кабинет»
- */
-async function sendMessage(vkUserId, message, appId = null) {
-  // Проверка наличия токена сообщества
-  if (!process.env.VK_COMMUNITY_TOKEN) {
-    console.error('VK_COMMUNITY_TOKEN не задан — уведомление не отправлено');
-    return;
-  }
-
+// Ленивый импорт VK-клиента: если токена нет — не падаем
+function getVkApi() {
+  if (!process.env.VK_TOKEN) return null;
   try {
-    const params = {
-      user_id: vkUserId,
-      message: message,
-      random_id: Math.floor(Math.random() * 1000000),
-      access_token: process.env.VK_COMMUNITY_TOKEN,
-      v: VK_API_VERSION,
-    };
-
-    // Добавляем клавиатуру с кнопкой «Перейти в личный кабинет», если передан appId
-    if (appId) {
-      const keyboard = {
-        inline: true,
-        buttons: [
-          [
-            {
-              action: {
-                type: 'open_app',
-                app_id: Number(appId),
-                label: 'Перейти в личный кабинет',
-                hash: 'profile',   // хеш для навигации внутри Mini App
-              },
-            },
-          ],
-        ],
-      };
-      params.keyboard = JSON.stringify(keyboard);
-    }
-
-    await axios.post(`${VK_API_URL}messages.send`, null, { params });
-    console.log(`Уведомление отправлено пользователю ${vkUserId}`);
-  } catch (error) {
-    console.error(
-      `Ошибка отправки уведомления пользователю ${vkUserId}:`,
-      error.response?.data || error.message
-    );
+    return require('../bot/vkClient');
+  } catch {
+    return null;
   }
 }
 
-/**
- * Уведомление о новом заказе.
- */
+async function sendVkMessage(vkId, message) {
+  if (!vkId) return;
+  const vk = getVkApi();
+  if (!vk) return;
+  try {
+    await vk.api.messages.send({
+      user_id:   Number(vkId),
+      message,
+      random_id: Math.floor(Math.random() * 1e9),
+    });
+  } catch (err) {
+    console.error('VK sendMessage error:', err.message);
+  }
+}
+
+async function getFullOrder(orderId) {
+  return Order.findByPk(orderId, {
+    include: [{ model: OrderItem, as: 'items' }],
+  });
+}
+
+// ─── Форматирование ─────────────────────────────────────────────────────────
+
+function formatDate(d) {
+  if (!d) return '—';
+  return new Date(d).toLocaleDateString('ru-RU');
+}
+
+function formatPrice(v) {
+  return Number(v).toLocaleString('ru-RU') + ' ₽';
+}
+
+function formatDelivery(type) {
+  return { courier: 'Курьер', post: 'Почта', pickup: 'Самовывоз' }[type] || type;
+}
+
+function formatStatus(status) {
+  const map = {
+    pending:   'Ожидает подтверждения',
+    confirmed: 'Подтверждён',
+    paid:      'Оплачен',
+    shipped:   'В пути',
+    delivered: 'Доставлен',
+    cancelled: 'Отменён',
+  };
+  return map[status] || status;
+}
+
+function buildOrderMessage(emoji, title, order) {
+  const items = (order.items || [])
+    .map(i => `  • ${i.product_name} × ${i.quantity} = ${formatPrice(Number(i.price) * i.quantity)}`)
+    .join('\n');
+
+  const lines = [
+    `${emoji} ${title}`,
+    '',
+    `📦 Заказ #${order.id}`,
+    `📅 Дата оформления: ${formatDate(order.created_at)}`,
+    `📊 Статус: ${formatStatus(order.status)}`,
+    '',
+    'Состав заказа:',
+    items || '  —',
+    '',
+    `💰 Итого: ${formatPrice(order.total_amount)}`,
+    `🚚 Доставка: ${formatDelivery(order.delivery_type)}`,
+  ];
+
+  if (order.delivery_address) lines.push(`📍 Адрес: ${order.delivery_address}`);
+  if (order.delivery_date)    lines.push(`📆 Дата доставки: ${formatDate(order.delivery_date)}`);
+
+  return lines.join('\n');
+}
+
+// ─── Экспортируемые функции ─────────────────────────────────────────────────
+
 exports.notifyNewOrder = async (user, orderId) => {
-  if (!user.vk_id) return;
-  const message = `✅ Ваш заказ №${orderId} оформлен и ожидает подтверждения.`;
-  await sendMessage(user.vk_id, message, process.env.VK_APP_ID);
+  if (!user?.vk_id) return;
+  const order = await getFullOrder(orderId);
+  if (!order) return;
+  await sendVkMessage(user.vk_id, buildOrderMessage('🎉', 'Ваш заказ успешно оформлен!', order));
 };
 
-/**
- * Уведомление о подтверждении заказа.
- */
 exports.notifyOrderConfirmed = async (user, orderId) => {
-  if (!user.vk_id) return;
-  const message = `✅ Ваш заказ №${orderId} подтверждён! Мы начали его сборку.`;
-  await sendMessage(user.vk_id, message, process.env.VK_APP_ID);
+  if (!user?.vk_id) return;
+  const order = await getFullOrder(orderId);
+  if (!order) return;
+  await sendVkMessage(user.vk_id, buildOrderMessage('✅', 'Заказ подтверждён!', order));
 };
 
-/**
- * Уведомление об оплате.
- */
 exports.notifyOrderPaid = async (user, orderId) => {
-  if (!user.vk_id) return;
-  const message = `💰 Заказ №${orderId} оплачен. Готовим к отправке.`;
-  await sendMessage(user.vk_id, message, process.env.VK_APP_ID);
+  if (!user?.vk_id) return;
+  const order = await getFullOrder(orderId);
+  if (!order) return;
+  await sendVkMessage(user.vk_id, buildOrderMessage('💳', 'Оплата получена, заказ обрабатывается!', order));
 };
 
-/**
- * Уведомление о передаче в доставку.
- */
 exports.notifyOrderShipped = async (user, orderId) => {
-  if (!user.vk_id) return;
-  const message = `🚚 Заказ №${orderId} передан в доставку. Ожидайте.`;
-  await sendMessage(user.vk_id, message, process.env.VK_APP_ID);
+  if (!user?.vk_id) return;
+  const order = await getFullOrder(orderId);
+  if (!order) return;
+  await sendVkMessage(user.vk_id, buildOrderMessage('🚚', 'Заказ отправлен и уже в пути!', order));
 };
 
-/**
- * Уведомление о доставке.
- */
 exports.notifyOrderDelivered = async (user, orderId) => {
-  if (!user.vk_id) return;
-  const message = `📦 Заказ №${orderId} доставлен! Спасибо за покупку.`;
-  await sendMessage(user.vk_id, message, process.env.VK_APP_ID);
+  if (!user?.vk_id) return;
+  const order = await getFullOrder(orderId);
+  if (!order) return;
+  await sendVkMessage(user.vk_id, buildOrderMessage('📦', 'Заказ доставлен! Спасибо за покупку 🎸', order));
 };
 
-/**
- * Уведомление об отмене.
- */
 exports.notifyOrderCancelled = async (user, orderId) => {
-  if (!user.vk_id) return;
-  const message = `❌ Заказ №${orderId} отменён.`;
-  await sendMessage(user.vk_id, message, process.env.VK_APP_ID);
+  if (!user?.vk_id) return;
+  const order = await getFullOrder(orderId);
+  if (!order) return;
+  await sendVkMessage(user.vk_id, buildOrderMessage('❌', 'Заказ отменён.', order));
 };

@@ -1,22 +1,27 @@
 require('dotenv').config();
 const app = require('./app');
 const { sequelize } = require('./models');
+const { startBot } = require('./bot');
 
 const PORT = process.env.PORT || 5000;
 
 async function start() {
   try {
     await sequelize.authenticate();
-    console.log('Connection to MySQL has been established successfully.');
-    
+    console.log('✅ Подключение к MySQL установлено');
+
     await sequelize.sync({ alter: true });
-    console.log('All models were synchronized successfully.');
+    console.log('✅ Модели синхронизированы');
 
     app.listen(PORT, () => {
-      console.log(`Server is running on ${PORT}`);
+      console.log(`🚀 Сервер запущен на порту ${PORT}`);
     });
+
+    // Бот запускается после сервера
+    await startBot();
+
   } catch (error) {
-    console.error('Unable to connect to the database:', error);
+    console.error('❌ Ошибка запуска:', error);
     process.exit(1);
   }
 }
