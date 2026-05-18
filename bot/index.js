@@ -3,9 +3,12 @@ const { User, Order, OrderItem } = require('../models');
 
 const APP_URL = `https://vk.com/app${process.env.VK_APP_ID}`;
 
-// pollingGroupId убран из конструктора — передаём в start()
+// Добавлены appId, appSecret и pollingGroupId обратно в конструктор
 const vk = new VK({
-  token: process.env.VK_TOKEN || '',
+  token:          process.env.VK_TOKEN        || '',
+  appId:          Number(process.env.VK_APP_ID),
+  appSecret:      process.env.VK_APP_SECRET   || '',
+  pollingGroupId: Number(process.env.VK_GROUP_ID),
 });
 
 // ─── Клавиатуры ─────────────────────────────────────────────────────────────
@@ -224,10 +227,7 @@ async function startBot() {
     return;
   }
   try {
-    // pollingGroupId передаётся в start(), а не в конструктор
-    await vk.updates.start({
-      pollingGroupId: Number(process.env.VK_GROUP_ID),
-    });
+    await vk.updates.start();
     console.log('🤖 VK Bot запущен (long polling)');
   } catch (err) {
     console.error('Ошибка запуска бота:', err.message);
