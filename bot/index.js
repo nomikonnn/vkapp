@@ -140,9 +140,10 @@ async function startBot() {
   try {
     const [group] = await vk.api.groups.getById({ group_id: String(groupId) });
     console.log('✅ Токен валиден, группа:', group.name, '(id:', group.id, ')');
+    console.log('⚠️  Ожидаемый ID:', groupId, 'Фактический ID:', group.id);
   } catch (err) {
-    console.error('❌ Токен/группа невалидны:', err.code, err.message);
-    console.error('   Полная ошибка:', JSON.stringify(err, null, 2));
+    console.error('❌ VK_GROUP_ID не совпадает с группой токена!');
+    console.error('   Измени VK_GROUP_ID в Railway на:', group.id);
     return;
   }
 
