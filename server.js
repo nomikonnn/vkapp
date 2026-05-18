@@ -10,14 +10,14 @@ async function start() {
     await sequelize.authenticate();
     console.log('✅ Подключение к MySQL установлено');
 
-    await sequelize.sync({ alter: true });
+    // alter: true убран — он каждый раз добавлял дубли индексов
+    await sequelize.sync();
     console.log('✅ Модели синхронизированы');
 
     app.listen(PORT, () => {
       console.log(`🚀 Сервер запущен на порту ${PORT}`);
     });
 
-    // Бот запускается после сервера
     await startBot();
 
   } catch (error) {
