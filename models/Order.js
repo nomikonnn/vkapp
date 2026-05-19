@@ -16,7 +16,7 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.ENUM('pending','confirmed','paid','shipped','delivered','cancelled'),
       defaultValue: 'pending',
     },
-    delivery_type: { type: DataTypes.ENUM('courier','post'), allowNull: false },
+    delivery_type: { type: DataTypes.ENUM('courier', 'post', 'pickup'), allowNull: false },
     delivery_address: { type: DataTypes.TEXT, allowNull: false },
     delivery_date: DataTypes.DATEONLY,
     delivery_time_window: DataTypes.STRING(50),
