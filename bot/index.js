@@ -127,42 +127,43 @@ async function startBot() {
   const token   = process.env.VK_TOKEN;
   const groupId = Number(process.env.VK_GROUP_ID);
 
-  console.log('🔍 Bot debug: token exists =', !!token);
-  console.log('🔍 Bot debug: token starts with =', token?.substring(0, 10) + '...');
-  console.log('🔍 Bot debug: groupId =', groupId, 'isNaN =', isNaN(groupId));
-
   if (!token || !groupId || isNaN(groupId)) {
     console.warn('⚠️  VK_TOKEN или VK_GROUP_ID не заданы — бот не запущен');
     return;
   }
 
-  // Шаг 1: проверяем что токен вообще рабочий
+  // Шаг 1: проверяем токен и узнаём реальный ID группы
   try {
-    const [group] = await vk.api.groups.getById({ group_id: String(groupId) });
+    const response = await vk.api.groups.getById({});
+    console.log('🔍 groups.getById raw response:', JSON.stringify(response));
+
+    // VK API v5.199 возвращает { groups: [...] }, старые версии — массив напрямую
+    const groups = response.groups || response;
+    const group  = Array.isArray(groups) ? groups[0] : groups;
+
+    if (!group || !group.id) {
+      console.error('❌ Не удалось определить группу из токена. Ответ:', JSON.stringify(response));
+      return;
+    }
+
     console.log('✅ Токен валиден, группа:', group.name, '(id:', group.id, ')');
-    console.log('⚠️  Ожидаемый ID:', groupId, 'Фактический ID:', group.id);
+
+    if (group.id !== groupId) {
+      console.error(`❌ VK_GROUP_ID=${groupId} не совпадает с группой токена (${group.id})`);
+      console.error(`   Измени VK_GROUP_ID в Railway на: ${group.id}`);
+      return;
+    }
   } catch (err) {
-    console.error('❌ VK_GROUP_ID не совпадает с группой токена!');
-    console.error('   Измени VK_GROUP_ID в Railway на:', group.id);
+    console.error('❌ Ошибка проверки токена:', err.code, err.message);
     return;
   }
 
-  // Шаг 2: проверяем Long Poll
-  try {
-    const lp = await vk.api.groups.getLongPollServer({ group_id: groupId });
-    console.log('✅ Long Poll сервер получен:', lp.server?.substring(0, 40) + '...');
-  } catch (err) {
-    console.error('❌ Long Poll ошибка:', err.code, err.message);
-    return;
-  }
-
-  // Шаг 3: запускаем поллинг
+  // Шаг 2: запускаем поллинг
   try {
     await vk.updates.start();
     console.log('🤖 VK Bot запущен');
   } catch (err) {
     console.error('❌ Ошибка vk.updates.start():', err.code, err.message);
-    console.error('   Stack:', err.stack);
   }
 }
 
