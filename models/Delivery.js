@@ -15,7 +15,7 @@ module.exports = (sequelize, DataTypes) => {
       unique: true,
     },
     type: {
-      type: DataTypes.ENUM('courier','post'),
+      type: DataTypes.ENUM('courier', 'post', 'pickup'),
       allowNull: false,
     },
     address: {
